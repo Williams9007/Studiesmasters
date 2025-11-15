@@ -211,4 +211,71 @@ router.get("/teacher/broadcasts/:teacherId", async (req, res) => {
   }
 });
 
+// ✅ Get class summary (subjects + student counts)
+router.get("/:id/class-summary", async (req, res) => {
+  try {
+    const teacherId = req.params.id;
+
+    // Find all subjects this teacher teaches
+    const subjects = await Subject.find({ teacherId }).lean();
+
+    // For each subject, count students enrolled
+    const summary = await Promise.all(
+      subjects.map(async (subject) => {
+        const studentCount = await ClassEnrollment.countDocuments({
+          subject: subject.name,
+          grade: subject.grade,
+        });
+
+        return {
+          subjectName: subject.name,
+          grade: subject.grade,
+          studentCount,
+        };
+      })
+    );
+
+    res.json(summary);
+  } catch (err) {
+    console.error("Error fetching teacher class summary:", err);
+    res.status(500).json({ message: err.message });
+  }
+});
+
+
+// 🧑‍🏫 Get all students assigned to this teacher
+router.get("/:id/students", async (req, res) => {
+  try {
+    const teacherId = req.params.id;
+
+    // Find subjects the teacher handles
+    const teacherSubjects = await Subject.find({ teacherId }).select("_id name grade");
+
+    if (!teacherSubjects.length)
+      return res.status(200).json([]); // No subjects yet, so no students
+
+    const subjectIds = teacherSubjects.map((s) => s._id);
+
+    // Find students enrolled in those subjects
+    const students = await Student.find({ subjectId: { $in: subjectIds } })
+      .populate("subjectId", "name grade")
+      .select("name email subjectId createdAt");
+
+    const formatted = students.map((s) => ({
+      _id: s._id,
+      name: s.name,
+      email: s.email,
+      subjectName: s.subjectId?.name,
+      className: s.subjectId?.grade,
+      createdAt: s.createdAt,
+    }));
+
+    res.status(200).json(formatted);
+  } catch (err) {
+    console.error("Error fetching teacher students:", err);
+    res.status(500).json({ message: "Server error fetching students" });
+  }
+});
+
+
 export default router;

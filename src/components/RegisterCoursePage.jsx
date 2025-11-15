@@ -1,13 +1,13 @@
 // RegisterCoursePage.jsx
 import React, { useState } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
 const RegisterCoursePage = () => {
-  const { role } = useParams(); // student or teacher
+  const { role } = useParams();
   const navigate = useNavigate();
   const [selectedCurriculum, setSelectedCurriculum] = useState(null);
 
-  // Curricula definitions
+  // UI curricula
   const curricula = [
     {
       name: "GES",
@@ -23,90 +23,109 @@ const RegisterCoursePage = () => {
     },
   ];
 
-  // Packages for students only
-  const curriculumPackages = {
+  // package UI cards (code is DB package suffix)
+  const curriculumPackagesUI = {
     GES: [
-      { name: "Extra Classes", description: "Enhance your learning after school.", img: "https://source.unsplash.com/400x300/?school,students" },
-      { name: "Home Tuition", description: "Private lessons at home.", img: "https://source.unsplash.com/400x300/?home,tutoring" },
-      { name: "Vacation Classes", description: "Learn and have fun during vacations.", img: "https://source.unsplash.com/400x300/?summer,classes" },
-      { name: "Special Classes", description: "Made for you.", img: "https://source.unsplash.com/400x300/?summer,classes" },
-      { name: "One on One  Classes", description: "Learn and have fun during vacations.", img: "https://source.unsplash.com/400x300/?summer,classes" },
-      { name: "Exams Prep Classes", description: "This gets you ready both minded and confident level .", img: "https://source.unsplash.com/400x300/?summer,classes" },
-      { name: "Weekend Classes", description: "Learn smarter, every weekend .", img: "https://source.unsplash.com/400x300/?summer,classes" },
-
-
-      
+      { code: "EC", name: "Extra Classes", description: "Enhance your learning after school.", duration: "3 months" },
+      { code: "HS", name: "Home Tuition", description: "Private lessons at home.", duration: "3 months" },
+      { code: "VC", name: "Vacation Classes", description: "Learn and have fun during vacations.", duration: "1 months" },
+      { code: "SC", name: "Special Classes", description: "Tailored group special classes.",duration: "1 months" },
+      { code: "OC", name: "One on One Classes", description: "Personalized learning.", duration: "1 months" },
+      { code: "EPC", name: "Exams Prep Classes", description: "Get ready for exams confidently.", duration: "3 months" },
+      { code: "WC", name: "Weekend Classes", description: "Learn smarter every weekend.", duration: "3 months" },
     ],
     Cambridge: [
-      { name: "One on One Classes", description: "Personalized teaching for you.", img: "https://source.unsplash.com/400x300/?one-on-one,tutoring" },
-      { name: "Exams Prep Classes", description: "Extra help for struggling students.", img: "https://source.unsplash.com/400x300/?remedial,learning" },
-      { name: " Home  Tuition", description: "Extra help for struggling students.", img: "https://source.unsplash.com/400x300/?remedial,learning" },
-      { name: "Special Classes", description: "Extra help for struggling students.", img: "https://source.unsplash.com/400x300/?remedial,learning" },
-      { name: "Weekend Classes", description: "Extra help for struggling students.", img: "https://source.unsplash.com/400x300/?remedial,learning" },
-      { name: "Extra Classes", description: "Extra help for struggling students.", img: "https://source.unsplash.com/400x300/?remedial,learning" },
-      { name: "Vacation Classes", description: "Extra help for struggling students.", img: "https://source.unsplash.com/400x300/?remedial,learning" },
-
-
-
+      { code: "EC", name: "Extra Classes", description: "Additional lessons.", duration: "3 months" },
+      { code: "WC", name: "Weekend Classes", description: "Extra weekend learning.", duration: "3 months" },
+      { code: "OC", name: "One on One Classes", description: "Personalized teaching.", duration: "1 months" },
+      { code: "EPC", name: "Exams Prep Classes", description: "Extra help for students.", duration: "3 months" },
+      
+      { code: "SC", name: "Special Classes", description: "Special intensive classes.", duration: "1 months" },
       
     ],
   };
 
-  // Handle curriculum selection
-  const handleCurriculumSelect = (curriculumName) => {
-    setSelectedCurriculum(curriculumName);
-
-    // If role is teacher, go directly to auth form (no packages)
-    if (role === "teacher") {
-      navigate(`/auth-form/${role}`, {
-        state: { role, curriculum: curriculumName },
-      });
-    }
-  };
-
-  // Handle package selection (students only)
-  const handlePackageSelect = (packageName) => {
-    navigate(`/auth-form/${role}`, {
-      state: { role, curriculum: selectedCurriculum, packageName },
-    });
+  // exact grade strings used in DB (confirmed)
+  const gradeOptionsByCurriculum = {
+    GES: ["4", "5-6", "JHS 1-3", "SHS 1-3"],
+    Cambridge: ["Stage 4-6", "Stage 7-11", "Stage 12-13"],
   };
 
   const currentTheme = curricula.find((c) => c.name === selectedCurriculum);
 
+  // helper: convert UI curriculum & package to DB package key
+  // e.g. GES + EC -> "GES-EC", Cambridge + EC -> "CAM-EC"
+  const makePackageKey = (curriculumName, pkgCode) => {
+    const prefix = curriculumName.toUpperCase() === "CAMBRIDGE" ? "CAM" : "GES";
+    return `${prefix}-${pkgCode}`;
+  };
+
+  // When user clicks a curriculum tile
+  const handleCurriculumSelect = (curriculumName) => {
+    setSelectedCurriculum(curriculumName);
+
+    // If teacher, immediately go to complete signup (teacher flow)
+    if (role === "teacher") {
+      const registration = {
+        curriculum: curriculumName,
+        packageName: "",
+        grade: "",
+        subjects: [],
+      };
+      localStorage.setItem("registrationData", JSON.stringify(registration));
+      navigate("/auth-form/:role", { state: registration });
+    }
+  };
+
+  const handlePackageClick = (pkg) => {
+  if (!selectedCurriculum || !pkg) return;
+
+  const packageKey = makePackageKey(selectedCurriculum, pkg.code);
+  const grades = gradeOptionsByCurriculum[selectedCurriculum] || [];
+  const defaultGrade = grades[0] || "";
+
+  const registration = {
+    curriculum: selectedCurriculum,
+    package: packageKey,
+    grade: defaultGrade,
+    duration: pkg.duration,
+  };
+
+  // store and pass to AuthForm
+  localStorage.setItem("registrationData", JSON.stringify(registration));
+  navigate(`/auth-form/${role}`, { state: registration });
+};
+
   return (
     <div
-      className={`min-h-screen flex flex-col items-center py-16 px-4 ${
-        selectedCurriculum
-          ? "bg-gray-50"
-          : "bg-gradient-to-b from-cyan-50 to-blue-50"
-      }`}
+      className={`min-h-screen flex flex-col items-center py-16 px-4 ${selectedCurriculum ? "bg-gray-50" : "bg-gradient-to-b from-cyan-50 to-blue-50"
+        }`}
     >
-      {/* Heading */}
       <h2 className="text-3xl md:text-4xl font-bold mb-10 text-center text-gray-900">
         {!selectedCurriculum
           ? `Select Curriculum (${role ? role.charAt(0).toUpperCase() + role.slice(1) : "User"})`
           : role === "student"
-          ? `${selectedCurriculum} Packages`
-          : `${selectedCurriculum} Curriculum`}
+            ? `${selectedCurriculum} Packages`
+            : `${selectedCurriculum} Curriculum`}
       </h2>
 
-      {/* Curriculum Selection */}
+      {/* Curriculum selection view */}
       {!selectedCurriculum && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 w-full max-w-6xl">
-          {curricula.map((curriculum) => (
+          {curricula.map((c) => (
             <div
-              key={curriculum.name}
-              onClick={() => handleCurriculumSelect(curriculum.name)}
-              className={`cursor-pointer w-full h-64 rounded-3xl shadow-xl transform transition-transform hover:scale-105 hover:shadow-2xl bg-gradient-to-br ${curriculum.gradient} flex flex-col justify-center items-center text-white p-6`}
+              key={c.name}
+              onClick={() => handleCurriculumSelect(c.name)}
+              className={`cursor-pointer w-full h-64 rounded-3xl shadow-xl transform transition-transform hover:scale-105 hover:shadow-2xl bg-gradient-to-br ${c.gradient} flex flex-col justify-center items-center text-white p-6`}
             >
-              <h3 className="text-3xl font-extrabold mb-3">{curriculum.name}</h3>
-              <p className="text-center text-lg">{curriculum.description}</p>
+              <h3 className="text-3xl font-extrabold mb-3">{c.name}</h3>
+              <p className="text-center text-lg">{c.description}</p>
             </div>
           ))}
         </div>
       )}
 
-      {/* Package Selection (students only) */}
+      {/* Packages view for students */}
       {selectedCurriculum && role === "student" && (
         <>
           <button
@@ -116,18 +135,24 @@ const RegisterCoursePage = () => {
             &larr; Back to Curriculum
           </button>
 
+          {/* package cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 w-full max-w-6xl">
-            {curriculumPackages[selectedCurriculum].map((pkg) => (
+            {curriculumPackagesUI[selectedCurriculum].map((pkg) => (
               <div
-                key={pkg.name}
-                onClick={() => handlePackageSelect(pkg.name)}
+                key={pkg.code}
+                onClick={() => handlePackageClick(pkg)}
                 className={`cursor-pointer bg-gradient-to-br ${currentTheme.packageGradient} rounded-xl shadow-lg hover:scale-105 transform transition-transform overflow-hidden`}
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handlePackageClick(pkg);
+                }}
               >
-                <img
-                  src={pkg.img}
-                  alt={pkg.name}
-                  className="w-full h-44 object-cover"
-                />
+                {/* image placeholder - keep as is or replace */}
+                <div className="w-full h-44 bg-gray-200 flex items-center justify-center">
+                  <span className="text-gray-700 font-medium">{pkg.code}</span>
+                </div>
+
                 <div className="p-5">
                   <h4 className="text-xl font-bold mb-2 text-gray-800">{pkg.name}</h4>
                   <p className="text-gray-700">{pkg.description}</p>

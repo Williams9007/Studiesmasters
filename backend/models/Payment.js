@@ -32,6 +32,19 @@ const paymentSchema = new mongoose.Schema(
       required: true, // array of subjects paid for
     },
 
+    duration: {
+      type: String,
+      required: true, // e.g., "3 months", "6 months"
+    },
+    
+    
+    screenshot: { 
+      data:Buffer,
+      contentType: String,
+    },
+
+
+
     amount: {
       type: Number,
       required: true,

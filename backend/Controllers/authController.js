@@ -3,38 +3,62 @@ import jwt from "jsonwebtoken";
 import Student from "../models/Student.js";
 import Teacher from "../models/teacher.js";
 import Admin from "../models/admin.js";
+import { sendWelcomeEmail, notifyAdmin } from "../utils/sendMessage.js";
 
 // ===========================
 // ✅ REGISTER USER
 // ===========================
-export const registerUser = async (req, res) => {
+if (role === "student") {
+  const {
+    fullName,
+    email,
+    password,
+    curriculum,
+    grade,
+    package: packageName,
+    subjects = [], // should be array of Subject ObjectIds
+  } = req.body;
+
+  // Hash password
+  const hashedPassword = await bcrypt.hash(password, 10);
+
+  // ✅ Create student with subject references
+  const newStudent = await Student.create({
+    fullName,
+    email,
+    password: hashedPassword,
+    curriculum,
+    grade,
+    package: packageName,
+    subjectsEnrolled: subjects, // <-- link subject IDs
+  });
+
   try {
-    const { role, email, password } = req.body;
+    // ✅ Send welcome email
+    await sendWelcomeEmail(
+      email,
+      fullName,
+      packageName,
+      subjects, // can map to names if you want later
+      curriculum
+    );
 
-    // Hash password
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    let user;
-    if (role === "student") {
-      user = await Student.create({ ...req.body, password: hashedPassword });
-    } else if (role === "teacher") {
-      user = await Teacher.create({ ...req.body, password: hashedPassword });
-    } else if (role === "admin") {
-      user = await Admin.create({ ...req.body, password: hashedPassword });
-    } else {
-      return res.status(400).json({ message: "Invalid role specified" });
-    }
-
-    res.status(201).json({
-      success: true,
-      message: `${role} registered successfully`,
-      user,
-    });
-  } catch (error) {
-    console.error("❌ Signup error:", error);
-    res.status(500).json({ message: "Signup failed", error: error.message });
+    // ✅ Notify admin
+    await notifyAdmin(
+      "New Student Registration",
+      `Student ${fullName} registered for the ${packageName} package covering subjects: ${subjects.join(", ")}`
+    );
+  } catch (emailErr) {
+    console.error("❌ Email notification failed:", emailErr);
   }
-};
+
+  return res.status(201).json({
+    success: true,
+    message: "Student registered successfully",
+    user: newStudent,
+  });
+}
+
 
 // ===========================
 // ✅ LOGIN USER

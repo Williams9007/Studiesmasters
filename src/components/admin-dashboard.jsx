@@ -1,4 +1,3 @@
-// src/components/AdminDashboard.jsx
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
@@ -8,20 +7,22 @@ import { Bell, PlusCircle, Megaphone } from "lucide-react";
 import BroadcastModal from "./BroadcastModal";
 import AssignSubjectModal from "./AssignSubjectModal";
 import AddAccountModal from "./AddAccountModal";
-import apiClient, { getJson } from "@/utils/apiClient";
+import apiClient from "@/utils/apiClient";
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
-  const [users, setUsers] = useState([]);
+  const [students, setStudents] = useState([]);
+  const [teachers, setTeachers] = useState([]);
+  const [qaos, setQaos] = useState([]);
+  const [subjects, setSubjects] = useState([]);
   const [payments, setPayments] = useState([]);
   const [showBroadcast, setShowBroadcast] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [showAssign, setShowAssign] = useState(false);
-  const [counts, setCounts] = useState({});
   const [loading, setLoading] = useState(true);
   const [verifying, setVerifying] = useState(true);
 
-  // ✅ Step 1: Verify Admin Token
+  // ✅ Verify Admin Session
   useEffect(() => {
     const verifyAdmin = async () => {
       try {
@@ -42,109 +43,85 @@ export default function AdminDashboard() {
     verifyAdmin();
   }, [navigate]);
 
-// ✅ Step 2: Fetch all dashboard data safely
-useEffect(() => {
-  if (verifying) return; // wait until verification is done
+  // ✅ Fetch all dashboard data safely
+  useEffect(() => {
+    if (verifying) return;
 
-  const fetchAllData = async () => {
-    setLoading(true);
+    const fetchData = async () => {
+      setLoading(true);
+      try {
+        const token = localStorage.getItem("adminToken");
+        const headers = { Authorization: `Bearer ${token}` };
 
-    const newUsers = [];
-    let newCounts = {};
-    let paymentsData = [];
+        // Fetch dashboard data
+        const [dashboardRes, paymentsRes, subjectsRes] = await Promise.all([
+          apiClient.get("/admin/dashboard", { headers }),
+          apiClient.get("/admin/payments", { headers }),
+          apiClient.get("/admin/subjects", { headers }),
+        ]);
 
+        const { students = [], teachers = [], qaos = [] } = dashboardRes.data || {};
+
+        setStudents(students);
+        setTeachers(teachers);
+        setQaos(qaos);
+        setSubjects(subjectsRes.data || []);
+        setPayments(paymentsRes.data || []);
+
+        // ✅ Fetch messages for QAOs safely
+        const qaoMessages = await Promise.all(
+          qaos.map(async (qao) => {
+            if (!qao._id) return { ...qao, messages: [] };
+            try {
+              const res = await apiClient.get(`/api/qao/messages/${qao._id}`, { headers });
+              return { ...qao, messages: res.data || [] };
+            } catch (err) {
+              console.error(`Failed to fetch messages for QAO ${qao._id}:`, err);
+              return { ...qao, messages: [] };
+            }
+          })
+        );
+        setQaos(qaoMessages);
+
+      } catch (err) {
+        console.error("❌ Dashboard load error:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [verifying]);
+
+  // ✅ Approve Payment
+  const approvePayment = async (id) => {
     try {
-      // 1️⃣ Fetch students
-      try {
-        const students = await getJson("/students");
-        newUsers.push(...students.map((s) => ({ ...s, role: "student" })));
-        newCounts.students = students.length;
-      } catch (err) {
-        console.error("❌ Failed to fetch students:", err);
-        newCounts.students = 0;
-      }
+      const token = localStorage.getItem("adminToken");
+      await apiClient.put(`/api/payments/approve/${id}`, {}, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
 
-      // 2️⃣ Fetch teachers
-      try {
-        const teachers = await getJson("/teachers");
-        newUsers.push(...teachers.map((t) => ({ ...t, role: "teacher" })));
-        newCounts.teachers = teachers.length;
-      } catch (err) {
-        console.error("❌ Failed to fetch teachers:", err);
-        newCounts.teachers = 0;
-      }
-
-      // 3️⃣ Fetch QAOs
-      try {
-        const qaos = await getJson("/qao");
-        newUsers.push(...qaos.map((q) => ({ ...q, role: "qao" })));
-        newCounts.qaos = qaos.length;
-      } catch (err) {
-        console.error("❌ Failed to fetch QAOs:", err);
-        newCounts.qaos = 0;
-      }
-
-      // 4️⃣ Fetch subjects
-      try {
-        const subjects = await getJson("/subjects");
-        newCounts.subjects = subjects.length;
-      } catch (err) {
-        console.error("❌ Failed to fetch subjects:", err);
-        newCounts.subjects = 0;
-      }
-
-      // 5️⃣ Fetch payments
-      try {
-        const payments = await getJson("/payments"); // make sure your backend returns populated student info
-        paymentsData = payments;
-      } catch (err) {
-        console.error("❌ Failed to fetch payments:", err);
-        paymentsData = [];
-      }
-
-      setUsers(newUsers);
-      setCounts(newCounts);
-      setPayments(paymentsData);
+      setPayments((prev) =>
+        prev.map((p) => (p._id === id ? { ...p, status: "approved" } : p))
+      );
     } catch (err) {
-      console.error("❌ Unexpected error in fetching dashboard:", err);
-    } finally {
-      setLoading(false);
+      console.error("❌ Payment approval failed:", err);
+      alert("Failed to approve payment");
     }
   };
 
-  fetchAllData();
-}, [verifying]);
-
-
-  // ✅ Delete user
-  const handleDeleteUser = async (id) => {
-    if (!window.confirm("Are you sure you want to delete this account?")) return;
-    try {
-      await apiClient.delete(`/admin/users/${id}`);
-      setUsers((prev) => prev.filter((u) => u._id !== id));
-    } catch {
-      alert("Failed to delete user");
-    }
-  };
-
-  // ✅ Loading state
-  if (verifying || loading) {
-    return (
-      <div className="flex items-center justify-center h-screen bg-gray-50 text-lg">
-        Loading dashboard...
-      </div>
-    );
-  }
+  if (verifying || loading)
+    return <div className="p-8 text-center text-gray-600">Loading dashboard...</div>;
 
   return (
-    <div className="p-6 bg-gray-50 min-h-screen">
-      {/* Top Bar */}
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold text-gray-800 flex items-center gap-2">
-          <img src="/logo.png" alt="EduConnect" className="w-8 h-8" />
-          Admin Dashboard
+    <div className="p-6 space-y-6">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h1 className="text-2xl font-bold flex items-center gap-2">
+          <Bell className="text-blue-500" /> Admin Dashboard
         </h1>
-        <div className="flex items-center gap-3">
+
+        <div className="flex flex-wrap gap-2">
           <Button
             onClick={() => setShowBroadcast(true)}
             className="bg-blue-600 hover:bg-blue-700 flex items-center gap-2"
@@ -157,15 +134,16 @@ useEffect(() => {
           >
             <PlusCircle size={18} /> Add Account
           </Button>
-          <div className="relative">
-            <Bell className="text-gray-600 w-6 h-6" />
-            <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full px-1.5">
-              {payments.length}
-            </span>
-          </div>
+          <Button
+            onClick={() => setShowAssign(true)}
+            className="bg-purple-600 hover:bg-purple-700 flex items-center gap-2"
+          >
+            Assign Subject
+          </Button>
         </div>
       </div>
 
+      {/* Main Content */}
       <Card className="shadow-lg rounded-2xl bg-white">
         <CardHeader className="border-b">
           <CardTitle className="text-xl font-semibold">Control Panel</CardTitle>
@@ -174,41 +152,41 @@ useEffect(() => {
           <Tabs defaultValue="overview" className="w-full">
             <TabsList className="flex flex-wrap gap-2 bg-gray-100 p-2 rounded-lg mb-4">
               <TabsTrigger value="overview">Overview</TabsTrigger>
-              <TabsTrigger value="users">Users</TabsTrigger>
-              <TabsTrigger value="broadcasts">Broadcasts</TabsTrigger>
-              <TabsTrigger value="assign">Assign Subjects</TabsTrigger>
+              <TabsTrigger value="students">Students</TabsTrigger>
+              <TabsTrigger value="teachers">Teachers</TabsTrigger>
+              <TabsTrigger value="qaos">QAOs</TabsTrigger>
+              <TabsTrigger value="subjects">Subjects</TabsTrigger>
               <TabsTrigger value="payments">Payments</TabsTrigger>
             </TabsList>
 
             {/* Overview */}
             <TabsContent value="overview">
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <OverviewCard title="Students" count={counts.students} color="blue" />
-                <OverviewCard title="Teachers" count={counts.teachers} color="green" />
-                <OverviewCard title="QAOs" count={counts.qaos} color="purple" />
-                <OverviewCard title="Subjects" count={counts.subjects} color="yellow" />
-                <OverviewCard title="Payments" count={counts.payments} color="pink" />
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+                <OverviewCard title="Students" count={students.length} color="blue" />
+                <OverviewCard title="Teachers" count={teachers.length} color="green" />
+                <OverviewCard title="QAOs" count={qaos.length} color="purple" />
+                <OverviewCard title="Subjects" count={subjects.length} color="yellow" />
               </div>
             </TabsContent>
 
-            {/* Users */}
-            <TabsContent value="users">
-              <UserSection users={users} onDelete={handleDeleteUser} />
+            {/* Students */}
+            <TabsContent value="students">
+              <DataTable data={students} role="student" />
             </TabsContent>
 
-            {/* Broadcasts */}
-            <TabsContent value="broadcasts">
-              <h2 className="text-lg font-semibold mb-3">All Broadcasts</h2>
-              <p>Use the broadcast button above to send announcements</p>
+            {/* Teachers */}
+            <TabsContent value="teachers">
+              <DataTable data={teachers} role="teacher" />
             </TabsContent>
 
-            {/* Assign Subjects */}
-            <TabsContent value="assign">
-              <AssignSubjectModal
-                users={users.filter((u) => u.role === "teacher")}
-                isOpen={showAssign}
-                onClose={() => setShowAssign(false)}
-              />
+            {/* QAOs */}
+            <TabsContent value="qaos">
+              <DataTable data={qaos} role="qao" />
+            </TabsContent>
+
+            {/* Subjects */}
+            <TabsContent value="subjects">
+              <DataTable data={subjects} role="subject" />
             </TabsContent>
 
             {/* Payments */}
@@ -221,7 +199,6 @@ useEffect(() => {
                     <thead className="bg-gray-100">
                       <tr>
                         <th className="p-2">Student</th>
-                        <th className="p-2">Curriculum</th>
                         <th className="p-2">Package</th>
                         <th className="p-2">Amount</th>
                         <th className="p-2">Screenshot</th>
@@ -231,8 +208,7 @@ useEffect(() => {
                     <tbody>
                       {payments.map((p) => (
                         <tr key={p._id} className="border-t hover:bg-gray-50">
-                          <td className="p-2">{p.studentId?.name || p.studentName}</td>
-                          <td className="p-2">{p.curriculum}</td>
+                          <td className="p-2">{p.studentId?.name || "N/A"}</td>
                           <td className="p-2">{p.package}</td>
                           <td className="p-2">{p.amount}</td>
                           <td className="p-2">
@@ -245,7 +221,19 @@ useEffect(() => {
                               View
                             </a>
                           </td>
-                          <td className="p-2 capitalize">{p.status}</td>
+                          <td className="p-2">
+                            {p.status === "pending" ? (
+                              <Button
+                                size="sm"
+                                className="bg-green-600 hover:bg-green-700"
+                                onClick={() => approvePayment(p._id)}
+                              >
+                                Approve
+                              </Button>
+                            ) : (
+                              <span className="text-green-600 font-semibold">Approved</span>
+                            )}
+                          </td>
                         </tr>
                       ))}
                     </tbody>
@@ -257,49 +245,74 @@ useEffect(() => {
         </CardContent>
       </Card>
 
-      {/* Modals */}
-      {showBroadcast && <BroadcastModal onClose={() => setShowBroadcast(false)} />}
+      {/* ✅ Modals */}
+      {showBroadcast && (
+        <BroadcastModal onClose={() => setShowBroadcast(false)} users={[...students, ...teachers, ...qaos]} />
+      )}
       {showAddAccount && <AddAccountModal onClose={() => setShowAddAccount(false)} />}
+      {showAssign && (
+        <AssignSubjectModal
+          users={teachers}
+          subjects={subjects}
+          isOpen={showAssign}
+          onClose={() => setShowAssign(false)}
+        />
+      )}
     </div>
   );
 }
 
-// 📊 Overview Card
+/* ---------- Reusable Components ---------- */
 function OverviewCard({ title, count, color }) {
+  const colorMap = {
+    blue: "text-blue-600 bg-blue-50 border-blue-100",
+    green: "text-green-600 bg-green-50 border-green-100",
+    purple: "text-purple-600 bg-purple-50 border-purple-100",
+    yellow: "text-yellow-600 bg-yellow-50 border-yellow-100",
+  };
   return (
-    <div className={`rounded-xl shadow p-6 text-center bg-${color}-50 border border-${color}-100`}>
-      <p className="text-gray-600">{title}</p>
-      <h3 className={`text-3xl font-bold text-${color}-600`}>{count}</h3>
+    <div className={`rounded-xl shadow p-6 text-center border ${colorMap[color]}`}>
+      <p className="font-semibold">{title}</p>
+      <h3 className="text-3xl font-bold">{count ?? 0}</h3>
     </div>
   );
 }
 
-// 👥 User Table
-function UserSection({ users, onDelete }) {
+function DataTable({ data, role }) {
   return (
     <div className="overflow-x-auto">
       <table className="min-w-full border rounded-lg">
         <thead className="bg-gray-100">
           <tr>
-            <th className="p-2 text-left">Name</th>
-            <th className="p-2 text-left">Email</th>
-            <th className="p-2 text-left">Role</th>
-            <th className="p-2 text-left">Action</th>
+            <th className="p-2">Name</th>
+            <th className="p-2">Email</th>
+            {role === "teacher" && <th className="p-2">Subjects</th>}
+            {role === "student" && <th className="p-2">Enrolled Classes</th>}
+            {role === "subject" && <th className="p-2">Assigned Teacher</th>}
           </tr>
         </thead>
         <tbody>
-          {users.map((u) => (
-            <tr key={u._id} className="border-t hover:bg-gray-50">
-              <td className="p-2">{u.name}</td>
-              <td className="p-2">{u.email}</td>
-              <td className="p-2 capitalize">{u.role}</td>
-              <td className="p-2">
-                {u.role !== "admin" && (
-                  <Button variant="destructive" size="sm" onClick={() => onDelete(u._id)}>
-                    Delete
-                  </Button>
-                )}
-              </td>
+          {data.map((item) => (
+            <tr key={item._id} className="border-t hover:bg-gray-50">
+              <td className="p-2">{item.name || item.title}</td>
+              <td className="p-2">{item.email || "—"}</td>
+              {role === "teacher" && (
+                <td className="p-2">
+                  {item.assignedSubjects?.length
+                    ? item.assignedSubjects.map((s) => s.name).join(", ")
+                    : "—"}
+                </td>
+              )}
+              {role === "student" && (
+                <td className="p-2">
+                  {item.enrolledClasses?.length
+                    ? item.enrolledClasses.map((c) => c.name || c.subject).join(", ")
+                    : "—"}
+                </td>
+              )}
+              {role === "subject" && (
+                <td className="p-2">{item.assignedTeacher?.name || "Unassigned"}</td>
+              )}
             </tr>
           ))}
         </tbody>

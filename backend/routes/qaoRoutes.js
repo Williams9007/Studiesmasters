@@ -1,96 +1,188 @@
 // backend/routes/qaoRoutes.js
 import express from "express";
 import dotenv from "dotenv";
+import jwt from "jsonwebtoken";
+import nodemailer from "nodemailer";
+
 import QaoUser from "../models/QaoUser.js"; 
-import Subject from "../models/Subject.js";
+import Teacher from "../models/teacher.js";
+import Resource from "../models/Resource.js"; 
+import KPI from "../models/Kpi.js";           
+import Notification from "../models/Notification.js";
 import Message from "../models/Message.js";
+
 import { verifyQao } from "../middleware/verifyQao.js";
 
 dotenv.config();
 const router = express.Router();
 
-/**
- * ✅ POST /api/qao/access
- * Simple access route for QAO login/auth
- */
-router.post("/access", (req, res) => {
+// -------------------- QAO Access / Login --------------------
+router.post("/access", async (req, res) => {
   const { qaoCode } = req.body;
 
-  // Replace this with your actual secret access code
-  const validCode = "QAO2025_SECRET";
+  if (!qaoCode) return res.status(400).json({ success: false, message: "Access code is required" });
+
+  const validCode = process.env.QAO_SECRET_CODE || "QAO2025_SECRET";
 
   if (qaoCode === validCode) {
-    return res.json({
-      success: true,
-      message: "QAO access granted",
-    });
-  } else {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid QAO access code",
-    });
+    let qao = await QaoUser.findOne({ role: "qao" });
+    if (!qao) {
+      qao = await QaoUser.create({
+        name: "Default QAO",
+        email: "qao@example.com",
+        role: "qao"
+      });
+    }
+
+    const token = jwt.sign({ id: qao._id, role: "qao" }, process.env.JWT_SECRET, { expiresIn: "8h" });
+
+    return res.json({ success: true, message: "QAO access granted", token, user: { id: qao._id, name: qao.name, email: qao.email } });
   }
+
+  return res.status(401).json({ success: false, message: "Invalid QAO access code" });
 });
 
-
-// 🔹 QAO → Teacher (send message)
+// -------------------- Broadcast Messages --------------------
 router.post("/broadcast", verifyQao, async (req, res) => {
   try {
     const { recipients, subject, message } = req.body;
-    const senderId = req.user.id; // from token
-    const senderRole = "qao";
+    const senderId = req.user._id;
 
-    if (!recipients || recipients.length === 0) {
-      return res.status(400).json({ message: "No recipients provided" });
-    }
+    if (!recipients?.length) return res.status(400).json({ success: false, message: "No recipients provided" });
 
     const messages = recipients.map((receiverId) => ({
       sender: senderId,
       receiver: receiverId,
       subject,
       message,
-      senderRole,
+      senderRole: "qao",
       receiverRole: "teacher",
     }));
 
     await Message.insertMany(messages);
-    res.status(200).json({ success: true, message: "Messages sent successfully" });
+
+    // Email notification (optional)
+    if (process.env.SMTP_USER && process.env.SMTP_PASS) {
+      const transporter = nodemailer.createTransport({
+        host: process.env.SMTP_HOST,
+        port: parseInt(process.env.SMTP_PORT, 10),
+        secure: process.env.SMTP_SECURE === "true",
+        auth: {
+          user: process.env.SMTP_USER,
+          pass: process.env.SMTP_PASS,
+        },
+      });
+
+      for (const receiverId of recipients) {
+        const teacher = await Teacher.findById(receiverId);
+        if (teacher?.email) {
+          await transporter.sendMail({
+            from: `"EduConnect QAO" <${process.env.SMTP_USER}>`,
+            to: teacher.email,
+            subject,
+            text: message,
+          });
+        }
+      }
+    }
+
+    res.json({ success: true, message: "Messages sent successfully" });
   } catch (err) {
-    console.error(err);
-    res.status(500).json({ message: "Server error" });
+    console.error("Broadcast error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
   }
 });
 
-// 🔹 Fetch messages sent by QAO
+// -------------------- Fetch Sent / Inbox Messages --------------------
 router.get("/sent", verifyQao, async (req, res) => {
-  const messages = await Message.find({ sender: req.user.id })
-    .populate("receiver", "name email role")
-    .sort({ createdAt: -1 });
-  res.json(messages);
+  try {
+    const messages = await Message.find({ sender: req.user._id })
+      .populate("receiver", "fullName email role")
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, messages });
+  } catch (err) {
+    console.error("Fetch sent messages error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
-// 🔹 Fetch messages received by QAO
 router.get("/inbox", verifyQao, async (req, res) => {
-  const messages = await Message.find({ receiver: req.user.id })
-    .populate("sender", "name email role")
-    .sort({ createdAt: -1 });
-  res.json(messages);
+  try {
+    const messages = await Message.find({ receiver: req.user._id })
+      .populate("sender", "fullName email role")
+      .sort({ createdAt: -1 });
+
+    res.json({ success: true, messages });
+  } catch (err) {
+    console.error("Fetch inbox messages error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
 });
 
-
-/**
- * ✅ GET /api/qao/users
- * Fetch QAO users and their assigned subjects
- */
-router.get("/users", async (req, res) => {
+// -------------------- Fetch Users & Teachers --------------------
+router.get("/users", verifyQao, async (req, res) => {
   try {
     const qaoUsers = await QaoUser.find().select("name email assignedSubjects");
-    // Optional: populate assigned subjects if needed
-    // const qaoUsers = await QaoUser.find().populate("assignedSubjects", "name");
-
     res.json({ success: true, qaoUsers });
-  } catch (error) {
-    console.error("QAO fetch users error:", error);
+  } catch (err) {
+    console.error("QAO fetch users error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+router.get("/teachers", verifyQao, async (req, res) => {
+  try {
+    const teachers = await Teacher.find().select("fullName email subjects");
+    res.json({ success: true, teachers });
+  } catch (err) {
+    console.error("Fetch teachers error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// -------------------- Resources --------------------
+router.get("/resources", verifyQao, async (req, res) => {
+  try {
+    const resources = await Resource.find()
+      .populate("teacher", "fullName")
+      .sort({ createdAt: -1 });
+    res.json({ success: true, resources });
+  } catch (err) {
+    console.error("Fetch resources error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+router.put("/resources/:id", verifyQao, async (req, res) => {
+  try {
+    const { approved } = req.body;
+    const resource = await Resource.findByIdAndUpdate(req.params.id, { approved }, { new: true });
+    res.json({ success: true, resource });
+  } catch (err) {
+    console.error("Update resource error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// -------------------- KPI --------------------
+router.get("/kpis", verifyQao, async (req, res) => {
+  try {
+    const kpis = await KPI.find().sort({ createdAt: -1 });
+    res.json({ success: true, kpis });
+  } catch (err) {
+    console.error("Fetch KPI error:", err);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+});
+
+// -------------------- Notifications --------------------
+router.get("/notifications", verifyQao, async (req, res) => {
+  try {
+    const notifications = await Notification.find({ recipient: req.user._id, read: false }).sort({ createdAt: -1 });
+    res.json({ success: true, notifications });
+  } catch (err) {
+    console.error("Fetch notifications error:", err);
     res.status(500).json({ success: false, message: "Server error" });
   }
 });

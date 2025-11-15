@@ -2,19 +2,21 @@ import express from "express";
 import mongoose from "mongoose";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
-import crypto from "crypto";
-import nodemailer from "nodemailer";
+import dotenv from "dotenv";
+import multer from "multer";
+import path from "path";
+
 import Student from "../models/Student.js";
 import Payment from "../models/Payment.js";
 import Subject from "../models/Subject.js";
+import Broadcast from "../models/Broadcast.js";
+import Assignment from "../models/Assignment.js"; // <-- Make sure this exists
 import { sendWelcomeEmail } from "../message/sendWelcomeEmail.js";
-import dotenv from "dotenv";
 
 dotenv.config();
 const router = express.Router();
 
-
-// ==================== REGISTER STUDENT ====================
+/* ==================== REGISTER STUDENT ==================== */
 router.post("/register", async (req, res) => {
   try {
     const {
@@ -26,42 +28,39 @@ router.post("/register", async (req, res) => {
       package: pkg,
       grade,
       subjects,
-      amount,
+      totalAmount,
       startDate,
       finishDate,
       studyDuration,
     } = req.body;
 
-    if (
-      !fullName ||
-      !email ||
-      !phone ||
-      !password ||
-      !curriculum ||
-      !pkg ||
-      !grade ||
-      !subjects ||
-      subjects.length < 2
-    ) {
-      return res.status(400).json({
-        message:
-          "All required fields must be provided and at least 2 subjects selected",
-      });
+    const selectedSubjects = Array.isArray(subjects)
+      ? subjects
+      : typeof subjects === "string" && subjects.trim() !== ""
+      ? [subjects]
+      : [];
+
+    if (!fullName || !email || !phone || !password || !curriculum || !pkg || !grade || selectedSubjects.length === 0) {
+      return res.status(400).json({ message: "All required fields must be provided and at least one subject selected." });
     }
 
     const existingStudent = await Student.findOne({ email });
-    if (existingStudent)
-      return res.status(400).json({ message: "Email already registered" });
+    if (existingStudent) return res.status(400).json({ message: "Email already registered" });
 
-    const foundSubjects = await Subject.find({
-      curriculum,
-      name: { $in: subjects.map((s) => new RegExp(`^${s}$`, "i")) },
+    const foundSubjects = await Subject.find({ _id: { $in: selectedSubjects } });
+    if (!foundSubjects.length) return res.status(400).json({ message: "No matching subjects found for the selected IDs." });
+
+    const invalidSubjects = foundSubjects.filter((s) => {
+      const subPackage = (s.package || "").trim().toUpperCase();
+      const subGrade = (s.grade || "").trim().toUpperCase();
+      const payloadPackage = (pkg || "").trim().toUpperCase();
+      const payloadGrade = (grade || "").trim().toUpperCase();
+      return subPackage !== payloadPackage || subGrade !== payloadGrade;
     });
 
-    if (!foundSubjects.length)
-      return res.status(400).json({
-        message: "No matching subjects found for selected curriculum",
-      });
+    if (invalidSubjects.length > 0) {
+      return res.status(400).json({ message: "Some selected subjects do not match the chosen curriculum/package/grade." });
+    }
 
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
@@ -75,7 +74,7 @@ router.post("/register", async (req, res) => {
       package: pkg,
       grade,
       subjectsEnrolled: foundSubjects.map((s) => s._id),
-      amount,
+      totalAmount,
       startDate,
       finishDate,
       studyDuration,
@@ -88,14 +87,12 @@ router.post("/register", async (req, res) => {
       { $push: { enrolledStudents: student._id } }
     );
 
-    // ✅ Send welcome email
-    const subjectNames = subjects.join(", ");
     try {
       await sendWelcomeEmail(
         email,
         fullName,
         pkg,
-        subjectNames,
+        foundSubjects.map((s) => s.name).join(", "),
         startDate || "N/A",
         finishDate || "N/A",
         studyDuration || "3 months"
@@ -104,38 +101,26 @@ router.post("/register", async (req, res) => {
       console.error("❌ Error sending welcome email:", emailError);
     }
 
-    // ✅ Generate token for immediate login
-    const token = jwt.sign({ id: student._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
+    const token = jwt.sign({ id: student._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
-    res.status(201).json({
-      message: "Student registered successfully",
-      user: student,
-      token,
-    });
+    res.status(201).json({ message: "✅ Student registered successfully", user: student, token });
   } catch (err) {
     console.error("❌ Student signup error:", err);
     res.status(500).json({ message: "Server error during student signup" });
   }
 });
 
-
-// ==================== LOGIN STUDENT ====================
+/* ==================== LOGIN STUDENT ==================== */
 router.post("/login", async (req, res) => {
   try {
     const { email, password } = req.body;
     const student = await Student.findOne({ email });
-    if (!student)
-      return res.status(404).json({ message: "User not found. Please sign up." });
+    if (!student) return res.status(404).json({ message: "User not found. Please sign up." });
 
     const isMatch = await bcrypt.compare(password, student.password);
-    if (!isMatch)
-      return res.status(400).json({ message: "Invalid email or password" });
+    if (!isMatch) return res.status(400).json({ message: "Invalid email or password" });
 
-    const token = jwt.sign({ id: student._id }, process.env.JWT_SECRET, {
-      expiresIn: "7d",
-    });
+    const token = jwt.sign({ id: student._id }, process.env.JWT_SECRET, { expiresIn: "7d" });
 
     res.json({ message: "Login successful", user: student, token });
   } catch (err) {
@@ -144,134 +129,134 @@ router.post("/login", async (req, res) => {
   }
 });
 
-
-// ==================== FORGOT PASSWORD (Send reset link) ====================
-router.post("/forget-password", async (req, res) => {
-  try {
-    const { email } = req.body;
-    if (!email) return res.status(400).json({ message: "Email is required" });
-
-    const student = await Student.findOne({ email });
-    if (!student)
-      return res.status(404).json({ message: "No user found with this email" });
-
-    // Generate secure reset token
-    const resetToken = crypto.randomBytes(32).toString("hex");
-    const resetTokenExpiry = Date.now() + 15 * 60 * 1000; // 15 min expiry
-
-    student.resetToken = resetToken;
-    student.resetTokenExpiry = resetTokenExpiry;
-    await student.save();
-
-    const resetLink = `http://localhost:5173/reset-password/${resetToken}`;
-
-    // ✅ Gmail transporter instead of Ethereal
-    const transporter = nodemailer.createTransport({
-      service: "gmail",
-      auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-      },
-    });
-
-    // Send reset email
-    await transporter.sendMail({
-      from: `"EduConnect Support" <${process.env.EMAIL_USER}>`,
-      to: email,
-      subject: "Password Reset Request",
-      html: `
-        <p>Hello ${student.fullName || "Student"},</p>
-        <p>You requested a password reset. Click the link below to set a new one:</p>
-        <p>Don't share the link with anyone.</p>
-        <a href="${resetLink}" target="_blank" 
-          style="background:#4f46e5;color:#fff;padding:10px 20px;text-decoration:none;border-radius:6px;">
-          Reset Password
-        </a>
-        <p>This link will expire in 15 minutes.</p>
-        <p>If you didn't request this, please ignore this email.</p>
-      `,
-    });
-
-    res.json({ message: "✅ Password reset link sent! Check your email." });
-  } catch (err) {
-    console.error("❌ Error sending password reset email:", err);
-    res.status(500).json({ message: "Server error sending reset email" });
-  }
-});
-
-// ==================== RESET PASSWORD ====================
-router.post("/reset-password/:token", async (req, res) => {
-  try {
-    const { token } = req.params;
-    const { newPassword } = req.body;
-
-    const student = await Student.findOne({
-      resetToken: token,
-      resetTokenExpiry: { $gt: Date.now() },
-    });
-
-    if (!student)
-      return res.status(400).json({ message: "Invalid or expired reset link" });
-
-    const salt = await bcrypt.genSalt(10);
-    student.password = await bcrypt.hash(newPassword, salt);
-    student.resetToken = undefined;
-    student.resetTokenExpiry = undefined;
-    await student.save();
-
-    res.json({ message: "✅ Password reset successful!" });
-  } catch (err) {
-    console.error("❌ Error resetting password:", err);
-    res.status(500).json({ message: "Server error resetting password" });
-  }
-});
-
-
-// ==================== GET CURRENT STUDENT ====================
+/* ==================== GET CURRENT STUDENT ==================== */
 router.get("/me", async (req, res) => {
   try {
     const authHeader = req.headers.authorization;
-    if (!authHeader)
-      return res.status(401).json({ message: "No token provided" });
+    if (!authHeader) return res.status(401).json({ message: "No token provided" });
 
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     const student = await Student.findById(decoded.id)
-      .populate("subjectsEnrolled", "name curriculum classTime teacherId")
+      .populate("subjectsEnrolled", "name package grade price")
       .select("-password");
 
-    if (!student)
-      return res.status(404).json({ message: "Student not found" });
+    if (!student) return res.status(404).json({ message: "Student not found" });
 
-    const payments = await Payment.find({ studentId: student._id });
+    const payments = await Payment.find({ studentId: student._id }).sort({ createdAt: -1 });
+
     res.json({ user: student, subjects: student.subjectsEnrolled, payments });
   } catch (err) {
-    console.error("Error fetching current student:", err);
+    console.error("❌ Error fetching current student:", err);
     res.status(500).json({ message: "Server error fetching student" });
   }
 });
 
-
-// ==================== GET STUDENT BY ID ====================
-router.get("/:id", async (req, res) => {
+/* ==================== FETCH STUDENT SUBJECTS ==================== */
+router.get("/:studentId/subjects", async (req, res) => {
   try {
-    if (!mongoose.Types.ObjectId.isValid(req.params.id)) {
-      return res.status(400).json({ message: "Invalid student ID format" });
-    }
+    const student = await Student.findById(req.params.studentId)
+      .populate("subjectsEnrolled", "name package grade price");
 
-    const student = await Student.findById(req.params.id)
-      .populate("subjectsEnrolled", "name curriculum classTime teacherId")
-      .select("-password");
+    if (!student) return res.status(404).json({ message: "Student not found" });
 
-    if (!student)
-      return res.status(404).json({ message: "Student not found" });
+    res.json(student.subjectsEnrolled || []);
+  } catch (error) {
+    console.error("❌ Error fetching student subjects:", error);
+    res.status(500).json({ message: "Server error" });
+  }
+});
 
-    const payments = await Payment.find({ studentId: student._id });
-    res.json({ user: student, subjects: student.subjectsEnrolled, payments });
+/* ==================== FETCH STUDENT BROADCASTS ==================== */
+router.get("/broadcasts/:studentId", async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const broadcasts = await Broadcast.find({ $or: [{ target: "all" }, { studentId }] }).sort({ createdAt: -1 });
+    res.json(broadcasts || []);
+  } catch (error) {
+    console.error("❌ Error fetching broadcasts:", error);
+    res.status(500).json({ message: "Server error fetching broadcasts" });
+  }
+});
+
+/* ==================== FETCH STUDENT PAYMENTS ==================== */
+router.get("/payments/:studentId", async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const payments = await Payment.find({ studentId }).sort({ createdAt: -1 });
+    res.json(payments || []);
+  } catch (error) {
+    console.error("❌ Error fetching payments:", error);
+    res.status(500).json({ message: "Server error fetching payments" });
+  }
+});
+
+/* ==================== FETCH STUDENT ASSIGNMENTS ==================== */
+router.get("/:studentId/assignments", async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const assignments = await Assignment.find({ studentId }).sort({ createdAt: -1 });
+    res.json(assignments || []);
+  } catch (error) {
+    console.error("❌ Error fetching assignments:", error);
+    res.status(500).json({ message: "Server error fetching assignments" });
+  }
+});
+
+
+/* ==================== FETCH STUDENT PAYMENTS ==================== */
+router.get("/payments/:studentId", async (req, res) => {
+  try {
+    const payments = await Payment.find({ studentId: req.params.studentId }).sort({ createdAt: -1 });
+
+    // Convert buffer to base64 so frontend can display
+    const paymentsWithImages = payments.map((p) => ({
+      ...p.toObject(),
+      proofImage: p.screenshot.data
+        ? `data:${p.screenshot.contentType};base64,${p.screenshot.data.toString("base64")}`
+        : null,
+    }));
+
+    res.json(paymentsWithImages);
   } catch (err) {
-    console.error("Error fetching student by ID:", err);
-    res.status(500).json({ message: "Server error fetching student" });
+    console.error(err);
+    res.status(500).json({ message: "Server error fetching payments" });
+  }
+});
+
+
+/* ==================== RENEW / MAKE PAYMENT ==================== */
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, "uploads/proofs/"),
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, file.fieldname + "-" + uniqueSuffix + path.extname(file.originalname));
+  },
+});
+const upload = multer({ storage });
+
+router.post("/renew-payment/:studentId", upload.single("proofImage"), async (req, res) => {
+  try {
+    const { studentId } = req.params;
+    const { amount, packageName } = req.body;
+
+    const proofPath = req.file ? `/uploads/proofs/${req.file.filename}` : null;
+
+    const newPayment = new Payment({
+      studentId,
+      amount,
+      package: packageName || "N/A",
+      proofImage: proofPath,
+      status: "pending",
+    });
+
+    await newPayment.save();
+
+    res.status(201).json({ message: "✅ Payment submitted successfully! Awaiting approval.", payment: newPayment });
+  } catch (error) {
+    console.error("❌ Error renewing payment:", error);
+    res.status(500).json({ message: "Server error during payment renewal" });
   }
 });
 

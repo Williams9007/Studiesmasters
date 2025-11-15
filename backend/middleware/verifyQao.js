@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import User from "../models/User.js"; // assuming QAO is stored in User collection
+import QaoUser from "../models/QaoUser.js"; // corrected model
 
 export const verifyQao = async (req, res, next) => {
   try {
@@ -11,14 +11,15 @@ export const verifyQao = async (req, res, next) => {
     const token = authHeader.split(" ")[1];
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    const qao = await User.findById(decoded.id);
-    if (!qao || qao.role !== "qao") {
+    const qao = await QaoUser.findById(decoded.id);
+    if (!qao) {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    req.user = qao;
+    req.user = qao; // attach QAO user to request
     next();
   } catch (err) {
+    console.error("verifyQao error:", err);
     res.status(401).json({ message: "Invalid or expired token" });
   }
 };

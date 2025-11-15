@@ -11,6 +11,12 @@ export default function AddAccountModal({ onClose }) {
 
   const handleCreate = async (e) => {
     e.preventDefault();
+
+    if (!name || !email || !password) {
+      alert("Please fill in all required fields.");
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await apiClient.post("/admin/users", {
@@ -19,7 +25,11 @@ export default function AddAccountModal({ onClose }) {
         email,
         password,
       });
-      alert(res.data.message);
+      alert(res.message || "Account created successfully!");
+      setName("");
+      setEmail("");
+      setPassword("");
+      setRole("student");
       onClose();
     } catch (err) {
       alert(err.response?.data?.message || "Error creating account");
@@ -83,7 +93,11 @@ export default function AddAccountModal({ onClose }) {
             <Button variant="outline" onClick={onClose}>
               Cancel
             </Button>
-            <Button type="submit" className="bg-green-600 hover:bg-green-700 text-white">
+            <Button
+              type="submit"
+              className="bg-green-600 hover:bg-green-700 text-white"
+              disabled={loading}
+            >
               {loading ? "Creating..." : "Create"}
             </Button>
           </div>

@@ -18,6 +18,10 @@ import authRoutes from "./routes/authRoutes.js";
 import adminRoutes from "./routes/adminRoutes.js";
 import contactRoutes from "./routes/contactRoutes.js";
 import messageRoutes from "./routes/messageRoutes.js";
+import classRoutes from "./routes/classRoutes.js";
+import teacherClassRoutes from "./routes/teacherClassRoutes.js";
+import pricingRoutes from "./routes/pricingRoutes.js";
+
 
 dotenv.config();
 connectDB(); // Connect to MongoDB
@@ -53,6 +57,9 @@ app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/contact", contactRoutes);
 app.use("/api/messages", messageRoutes);
+app.use("/api/classes", classRoutes);
+app.use("/api/teacher-classes", teacherClassRoutes);
+app.use("/api/pricing", pricingRoutes);
 
 
 

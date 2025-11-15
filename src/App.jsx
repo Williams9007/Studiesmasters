@@ -1,4 +1,4 @@
-import { Routes, Route } from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import axios from "axios";
 
 // ✅ Import your pages
@@ -6,7 +6,7 @@ import LandingPage from "./components/landing-page.jsx";
 import LoginPage from "./components/LoginPage.jsx";
 import RegisterCoursePage from "./components/RegisterCoursePage.jsx";
 import { StudentDashboard } from "./components/student-dashboard.jsx";
-import { AuthForm } from "./components/auth-form-updated.jsx";
+import { AuthForm }  from  "./components/auth-form-updated.jsx";
 import PaymentPage from "./components/payment-flow.jsx";
 import { AccountSettings } from "./components/AccountSettings.jsx";
 import ForgetPasswordPage from "./components/ForgetPasswordPage.jsx";
@@ -72,6 +72,9 @@ function App() {
             </PrivateAdminRoute>
           }
         />
+
+        {/* convenience redirect so /admin works */}
+        <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
 
         {/* ✅ Fallback Route */}
         <Route

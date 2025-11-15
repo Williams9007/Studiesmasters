@@ -1,46 +1,54 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Button } from "./ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "./ui/card";
 import { Input } from "./ui/input";
 import { Textarea } from "./ui/textarea";
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from "./ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
-import { BookOpen, User, Bell, CheckCircle, Send } from "lucide-react";
+import { BookOpen, User, Bell, CheckCircle, Send, LogOut } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
-// ✅ Default values
-const defaultSubjects = [];
+export function TeacherDashboard({ user = {}, onLogout }) {
+  const navigate = useNavigate();
+  const token = localStorage.getItem("token");
 
-export function TeacherDashboard({ user = {}, onLogout = () => {} }) {
   const [notifications, setNotifications] = useState([]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [recentMessage, setRecentMessage] = useState(null);
-  const [messages, setMessages] = useState([]); // From QAO or admin
-  const [reply, setReply] = useState("");
+  const [messages, setMessages] = useState([]);
+  const [replies, setReplies] = useState({}); // per-message replies
 
-  // ✅ Broadcast states
   const [subjects, setSubjects] = useState([]);
   const [broadcastSubject, setBroadcastSubject] = useState("");
   const [broadcastMessage, setBroadcastMessage] = useState("");
   const [broadcasts, setBroadcasts] = useState([]);
   const [sending, setSending] = useState(false);
 
-  // 🪄 Welcome message
+  const [activities, setActivities] = useState([]); // For Overview tab
+
+  // --- Fetch initial data ---
   useEffect(() => {
-    const name = user.name || "Teacher";
-    const welcomeMessage = `Welcome back, ${name}! 👋`;
-    addNotification(welcomeMessage);
-    fetchMessages();
+    if (!user._id) return;
+
+    addNotification(`Welcome back, ${user.name || "Teacher"}! 👋`);
+
     fetchSubjects();
     fetchBroadcasts();
-  }, []);
+    fetchMessages();
+    fetchNotifications();
+  }, [user._id]);
 
-  // ✅ Fetch subjects for the teacher
+  // --- Fetch subjects ---
   const fetchSubjects = async () => {
+    if (!user._id || !token) return;
     try {
-      const res = await fetch(`/api/teacher/${user._id}/subjects`);
+      const res = await fetch(`/api/teacher/${user._id}/subjects`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to fetch subjects");
       const data = await res.json();
       setSubjects(data || []);
     } catch (err) {
@@ -48,38 +56,78 @@ export function TeacherDashboard({ user = {}, onLogout = () => {} }) {
     }
   };
 
-  // ✅ Fetch existing broadcasts
+  // --- Fetch broadcasts ---
   const fetchBroadcasts = async () => {
+    if (!user._id || !token) return;
     try {
-      const res = await fetch(`/api/teacher/${user._id}/broadcasts`);
+      const res = await fetch(`/api/teacher/${user._id}/broadcasts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to fetch broadcasts");
       const data = await res.json();
       setBroadcasts(data || []);
+
+      const newActivities = (data || []).map((b) => ({
+        type: "broadcast",
+        subject: b.subjectName || "General",
+        message: b.message,
+        time: new Date(b.createdAt).toLocaleString(),
+      }));
+      setActivities((prev) => [...newActivities, ...prev]);
     } catch (err) {
       console.error("Error fetching broadcasts:", err);
     }
   };
 
-  // ✅ Fetch messages from QAO
+  // --- Fetch messages ---
   const fetchMessages = async () => {
+    if (!user._id || !token) return;
     try {
-      const res = await fetch(`/api/qao/messages/${user._id}`);
+      const res = await fetch(`/api/messages/teacher/${user._id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to fetch messages");
       const data = await res.json();
       setMessages(data || []);
+
+      const msgActivities = (data || []).map((m) => ({
+        type: "message",
+        message: m.content,
+        time: new Date(m.date).toLocaleString(),
+      }));
+      setActivities((prev) => [...msgActivities, ...prev]);
     } catch (err) {
       console.error("Failed to fetch messages:", err);
     }
   };
 
-  // ✅ Send broadcast to students (by subject)
+  // --- Fetch notifications ---
+  const fetchNotifications = async () => {
+    if (!user._id || !token) return;
+    try {
+      const res = await fetch(`/api/teacher/notifications`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) throw new Error("Failed to fetch notifications");
+      const data = await res.json();
+      setNotifications(data || []);
+    } catch (err) {
+      console.error("Failed to fetch notifications:", err);
+    }
+  };
+
+  // --- Send broadcast ---
   const handleSendBroadcast = async () => {
     if (!broadcastMessage.trim()) return alert("Message cannot be empty");
     if (!broadcastSubject) return alert("Please select a subject");
+
+    if (!token) return alert("No auth token found");
 
     try {
       setSending(true);
       const res = await fetch("/api/teacher/broadcast", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
           teacherId: user._id,
           subjectId: broadcastSubject,
@@ -99,32 +147,48 @@ export function TeacherDashboard({ user = {}, onLogout = () => {} }) {
     }
   };
 
-  // ✅ Send reply back to QAO
+  // --- Reply to a message ---
   const handleReply = async (e, msgId) => {
     e.preventDefault();
-    if (!reply.trim()) return;
+    const replyText = replies[msgId];
+    if (!replyText?.trim()) return;
+
+    if (!token) return alert("No auth token found");
+
     try {
-      const res = await fetch(`/api/qao/messages/${msgId}/reply`, {
+      const res = await fetch(`/api/messages/reply/${msgId}`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ reply, teacherId: user._id }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reply: replyText, teacherId: user._id }),
       });
       if (res.ok) {
-        setReply("");
+        setReplies((prev) => ({ ...prev, [msgId]: "" }));
         fetchMessages();
         addNotification("Reply sent successfully ✅");
+
+        setActivities((prev) => [
+          { type: "reply", message: replyText, time: new Date().toLocaleString() },
+          ...prev,
+        ]);
       }
     } catch (err) {
       console.error("Error sending reply:", err);
     }
   };
 
-  // ✅ Notifications
+  // --- Add notification ---
   const addNotification = (message) => {
     const newNote = { id: Date.now(), message, time: new Date().toLocaleTimeString() };
     setNotifications((prev) => [newNote, ...prev]);
     setRecentMessage(message);
     setTimeout(() => setRecentMessage(null), 6000);
+  };
+
+  // --- Logout ---
+  const handleLogout = () => {
+    if (onLogout) onLogout();
+    localStorage.removeItem("token");
+    navigate("/login");
   };
 
   return (
@@ -185,15 +249,18 @@ export function TeacherDashboard({ user = {}, onLogout = () => {} }) {
               <p className="font-semibold text-gray-900">{user.name || "Guest Teacher"}</p>
               <p className="text-sm text-gray-600">{user.email || "guest@educonnect.com"}</p>
             </div>
+
             <div className="w-12 h-12 bg-gradient-to-br from-purple-500 to-pink-600 rounded-full flex items-center justify-center shadow-lg">
               <User className="h-6 w-6 text-white" />
             </div>
+
             <Button
               variant="outline"
-              onClick={onLogout}
-              className="hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
+              onClick={handleLogout}
+              className="flex items-center space-x-2 hover:bg-red-50 hover:border-red-200 hover:text-red-600 transition-colors"
             >
-              Logout
+              <LogOut className="w-4 h-4" />
+              <span>Logout</span>
             </Button>
           </div>
         </div>
@@ -225,7 +292,29 @@ export function TeacherDashboard({ user = {}, onLogout = () => {} }) {
             <TabsTrigger value="messages">Messages</TabsTrigger>
           </TabsList>
 
-          {/* ✅ Messages Tab */}
+          {/* Overview Tab */}
+          <TabsContent value="overview">
+            <h2 className="text-xl font-semibold mb-4">Recent Activities</h2>
+            {activities.length === 0 ? (
+              <p className="text-gray-500">No recent activities</p>
+            ) : (
+              activities.map((act, i) => (
+                <Card key={i} className="p-4 mb-3 shadow-sm border">
+                  <CardContent>
+                    <p className="font-medium">
+                      {act.type === "broadcast" && `Sent broadcast in "${act.subject}"`}
+                      {act.type === "message" && "Received message"}
+                      {act.type === "reply" && "Replied to a message"}
+                    </p>
+                    <p className="text-gray-700">{act.message}</p>
+                    <p className="text-gray-400 text-xs mt-1">{act.time}</p>
+                  </CardContent>
+                </Card>
+              ))
+            )}
+          </TabsContent>
+
+          {/* Messages Tab */}
           <TabsContent value="messages">
             <div className="space-y-6">
               {messages.length === 0 ? (
@@ -235,15 +324,20 @@ export function TeacherDashboard({ user = {}, onLogout = () => {} }) {
                   <Card key={msg._id} className="bg-white/80 backdrop-blur-sm">
                     <CardHeader>
                       <CardTitle>{msg.title || "Broadcast"}</CardTitle>
-                      <CardDescription>{msg.date || "Recent"}</CardDescription>
+                      <CardDescription>{new Date(msg.date).toLocaleString()}</CardDescription>
                     </CardHeader>
                     <CardContent>
                       <p className="text-gray-700 mb-4">{msg.content}</p>
-                      <form onSubmit={(e) => handleReply(e, msg._id)} className="flex items-center space-x-2">
+                      <form
+                        onSubmit={(e) => handleReply(e, msg._id)}
+                        className="flex items-center space-x-2"
+                      >
                         <Input
                           placeholder="Write a reply..."
-                          value={reply}
-                          onChange={(e) => setReply(e.target.value)}
+                          value={replies[msg._id] || ""}
+                          onChange={(e) =>
+                            setReplies((prev) => ({ ...prev, [msg._id]: e.target.value }))
+                          }
                         />
                         <Button type="submit" className="flex items-center">
                           <Send className="h-4 w-4 mr-1" /> Reply
@@ -256,7 +350,76 @@ export function TeacherDashboard({ user = {}, onLogout = () => {} }) {
             </div>
           </TabsContent>
 
-          {/* ✅ Broadcast Tab */}
+           {/* Assignments */}
+          <TabsContent value="assignments">
+            <div className="space-y-6">
+              {/* Post Assignment Form */}
+              <Card className="p-6 shadow-lg">
+                <CardHeader>
+                  <CardTitle>Post New Assignment</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <Input
+                    placeholder="Assignment Title"
+                    value={newAssignment.title}
+                    onChange={e => setNewAssignment(prev => ({ ...prev, title: e.target.value }))}
+                  />
+                  <Input
+                    placeholder="Class Name"
+                    value={newAssignment.className}
+                    onChange={e => setNewAssignment(prev => ({ ...prev, className: e.target.value }))}
+                  />
+                  <Select
+                    onValueChange={v => setNewAssignment(prev => ({ ...prev, subjectId: v }))}
+                    value={newAssignment.subjectId}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select Subject" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {subjects.length > 0 ? subjects.map(subj => (
+                        <SelectItem key={subj._id} value={subj._id}>{subj.name}</SelectItem>
+                      )) : <SelectItem disabled>No subjects</SelectItem>}
+                    </SelectContent>
+                  </Select>
+                  <Textarea
+                    placeholder="Assignment Description"
+                    value={newAssignment.description}
+                    onChange={e => setNewAssignment(prev => ({ ...prev, description: e.target.value }))}
+                  />
+                  <Button onClick={handlePostAssignment}>Post Assignment</Button>
+                </CardContent>
+              </Card>
+
+              {/* Existing Assignments */}
+              <h2 className="text-xl font-semibold">Existing Assignments</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {assignments.length === 0 ? (
+                  <p className="text-gray-500 col-span-full">No assignments posted</p>
+                ) : (
+                  assignments.map(a => (
+                    <Card key={a._id} className="p-4 shadow-sm border">
+                      <CardHeader>
+                        <CardTitle>{a.title}</CardTitle>
+                        <CardDescription>{a.className} - {a.subjectName}</CardDescription>
+                      </CardHeader>
+                      <CardContent>
+                        <p>{a.description}</p>
+                        <p className="text-gray-400 text-xs mt-1">{new Date(a.createdAt).toLocaleString()}</p>
+                      </CardContent>
+                    </Card>
+                  ))
+                )}
+              </div>
+            </div>
+          </TabsContent>
+
+
+
+
+
+
+          {/* Broadcast Tab */}
           <TabsContent value="subjects">
             <Card className="shadow-lg p-6">
               <CardHeader>
@@ -297,7 +460,6 @@ export function TeacherDashboard({ user = {}, onLogout = () => {} }) {
               </CardContent>
             </Card>
 
-            {/* Previously Sent Broadcasts */}
             <div className="mt-8">
               <h2 className="text-xl font-semibold mb-3">Previous Broadcasts</h2>
               {broadcasts.length > 0 ? (
@@ -326,4 +488,5 @@ export function TeacherDashboard({ user = {}, onLogout = () => {} }) {
     </div>
   );
 }
+
 export default TeacherDashboard;

@@ -199,7 +199,7 @@ EduConnectt is designed for parents and guardians who want to register their chi
             href="https://twitter.com"
             target="_blank"
             rel="noopener noreferrer"
-            className="hover:text-blue-400"
+            className="hover:text-green-400"
           >
             <FaTwitter />
           </a>

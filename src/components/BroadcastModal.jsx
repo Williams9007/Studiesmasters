@@ -38,12 +38,12 @@ export default function BroadcastModal({ users, currentUserRole, onClose }) {
       type: roleFilter,
       subject,
       message,
-      recipientIds: recipients,
+      recipients: recipients,
     };
 
     try {
-      setLoading(true);
-      const res = await apiClient.post("/admin/broadcast", payload);
+  setLoading(true);
+  const res = await apiClient.post("/admin/broadcasts", payload);
       alert(res.data.message || "Broadcast sent successfully!");
       onClose();
     } catch (err) {

@@ -44,6 +44,82 @@ export const getAllBroadcasts = async (req, res) => {
 };
 
 /**
+ * Admin: get dashboard users (students, teachers, qaos)
+ */
+export const getDashboard = async (req, res) => {
+  try {
+    // gather from different collections
+    const teachersFromTeacher = await Teacher.find().lean();
+    const teachersFromUser = await User.find({ role: "teacher" }).lean();
+
+    const students = await User.find({ role: "student" }).lean();
+
+    const qaosFromQaoUser = await QaoUser.find().lean();
+    const qaosFromUser = await User.find({ role: "qao" }).lean();
+
+    const dedupeByEmail = (arr) => {
+      const seen = new Map();
+      for (const item of arr || []) {
+        const email = (item.email || "").toLowerCase();
+        if (!email) continue;
+        if (!seen.has(email)) seen.set(email, item);
+      }
+      return Array.from(seen.values());
+    };
+
+    const teachers = dedupeByEmail([...teachersFromTeacher, ...teachersFromUser]);
+    const qaos = dedupeByEmail([...qaosFromQaoUser, ...qaosFromUser]);
+
+    res.json({ success: true, teachers, students, qaos });
+  } catch (error) {
+    console.error("❌ getDashboard error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch dashboard" });
+  }
+};
+
+/**
+ * Admin: counts for overview
+ */
+export const getCounts = async (req, res) => {
+  try {
+    const studentCount = await User.countDocuments({ role: "student" });
+    const teachersFromTeacher = await Teacher.find().select("email").lean();
+    const teachersFromUser = await User.find({ role: "teacher" }).select("email").lean();
+    const teacherEmails = new Set();
+    teachersFromTeacher.forEach((t) => t.email && teacherEmails.add(t.email.toLowerCase()));
+    teachersFromUser.forEach((t) => t.email && teacherEmails.add(t.email.toLowerCase()));
+
+    const qaosFromQaoUser = await QaoUser.find().select("email").lean();
+    const qaosFromUser = await User.find({ role: "qao" }).select("email").lean();
+    const qaoEmails = new Set();
+    qaosFromQaoUser.forEach((q) => q.email && qaoEmails.add(q.email.toLowerCase()));
+    qaosFromUser.forEach((q) => q.email && qaoEmails.add(q.email.toLowerCase()));
+
+    const adminCount = await User.countDocuments({ role: "admin" });
+
+    const subjectCount = await Subject.countDocuments();
+    const paymentCount = await Payment.countDocuments();
+    const messageCount = await ContactMessage.countDocuments();
+
+    res.json({
+      success: true,
+      counts: {
+        students: studentCount,
+        teachers: teacherEmails.size,
+        qaos: qaoEmails.size,
+        admins: adminCount,
+        subjects: subjectCount,
+        payments: paymentCount,
+        messages: messageCount,
+      },
+    });
+  } catch (error) {
+    console.error("❌ getCounts error:", error);
+    res.status(500).json({ success: false, message: "Failed to fetch counts" });
+  }
+};
+
+/**
  * Admin: create a user (student/teacher/qao)
  */
 export const createUser = async (req, res) => {
