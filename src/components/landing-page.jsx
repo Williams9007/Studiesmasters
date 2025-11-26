@@ -13,14 +13,11 @@ import "slick-carousel/slick/slick-theme.css";
 import { useNavigate } from "react-router-dom";
 import ChatBotWidget from "../components/ChatBotWidget";
 
-
 const LandingPage = () => {
   const navigate = useNavigate();
 
-  // ✅ Updated Role Click Handler
   const handleRoleClick = (role) => {
-    const selectedRole = role.toLowerCase();
-    navigate(`/register-course/${selectedRole}`);
+    navigate(`/register-course/${role.toLowerCase()}`);
   };
 
   const handleLoginClick = () => {
@@ -48,21 +45,6 @@ const LandingPage = () => {
       description: "Personalized teaching for you.",
       img: "https://media.istockphoto.com/id/1292825155/photo/youre-the-best-teacher.webp?a=1&b=1&s=612x612&w=0&k=20&c=8j_Lr9GWaVogBqQVkzrd-mm4ZUIbN1-09hCNriO7A1o=",
     },
-    {
-      title: "Exams Prep Classes",
-      description: "Extra help for struggling students.",
-      img: "https://media.istockphoto.com/id/917599168/photo/professor-writing-mathematical-formula-and-equation-to-blackboard-in-school-classroom-college.webp?a=1&b=1&s=612x612&w=0&k=20&c=icndRFzGZ6cG_kw9Qw5l6OWPhXdC20CCmAhUVyBlHIk=",
-    },
-     {
-      title: "Special Classes",
-      description: "Extra help for struggling students.",
-      img: "https://media.istockphoto.com/id/917599168/photo/professor-writing-mathematical-formula-and-equation-to-blackboard-in-school-classroom-college.webp?a=1&b=1&s=612x612&w=0&k=20&c=icndRFzGZ6cG_kw9Qw5l6OWPhXdC20CCmAhUVyBlHIk=",
-    },
-     {
-      title: "Weekend Classes",
-      description: "Extra help for struggling students.",
-      img: "https://media.istockphoto.com/id/917599168/photo/professor-writing-mathematical-formula-and-equation-to-blackboard-in-school-classroom-college.webp?a=1&b=1&s=612x612&w=0&k=20&c=icndRFzGZ6cG_kw9Qw5l6OWPhXdC20CCmAhUVyBlHIk=",
-    },
   ];
 
   const settings = {
@@ -81,69 +63,59 @@ const LandingPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-blue-50 to-cyan-100 text-gray-900">
- <ChatBotWidget />
+      <ChatBotWidget />
 
       {/* Hero Section */}
       <section className="relative h-screen">
         <img
-          src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8c3R1ZGVudHN8ZW58MHx8MHx8fDA%3D&auto=format&fit=crop&w=1920&q=80"
-          srcSet="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8c3R1ZGVudHN8ZW58MHx8MHx8fDA%3D&auto=format&fit=crop&w=768&q=80 768w, https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8c3R1ZGVudHN8ZW58MHx8MHx8fDA%3D&auto=format&fit=crop&w=1280&q=80 1280w, https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8c3R1ZGVudHN8ZW58MHx8MHx8fDA%3D&auto=format&fit=crop&w=1920&q=80 1920w, https://images.unsplash.com/photo-1522202176988-66273c2fd55f?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8Nnx8c3R1ZGVudHN8ZW58MHx8MHx8fDA%3D&auto=format&fit=crop&w=3840&q=80 3840w"
-          sizes="100vw"
-          loading="eager"
+          src="https://images.unsplash.com/photo-1522202176988-66273c2fd55f?auto=format&fit=crop&w=1920&q=80"
           alt="Hero"
           className="w-full h-full object-cover"
         />
-        {/* Welcome overlay: appears center and fades out */}
-        <div
-          role="status"
-          aria-live="polite"
-          className="absolute inset-0 flex items-center justify-center pointer-events-none"
-        >
-          <div className="bg-black/60 text-white px-6 py-4 rounded-xl text-center max-w-xl animate-welcome-fade">
-            <h1 className="text-3xl md:text-5xl font-extrabold mb-2">Welcome to EduConnectt</h1>
-            <p className="text-sm md:text-base opacity-90">Connecting students and teachers for meaningful learning.</p>
+        <div className="absolute inset-0 flex items-center justify-center bg-black/50 px-4">
+          <div className="text-center max-w-lg">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold text-white mb-2">
+              Welcome to EduConnectt
+            </h1>
+            <p className="text-sm sm:text-base md:text-lg text-white/90">
+              Connecting students and teachers for meaningful learning.
+            </p>
           </div>
         </div>
-        <div className="absolute top-6 left-6 flex items-center gap-2 text-3xl font-bold">
+        <div className="absolute top-4 left-4 flex items-center gap-2 text-2xl sm:text-3xl font-bold text-white">
           <FaBookOpen className="text-yellow-400 animate-pulse" />
           <span className="text-primary">EduConnectt</span>
         </div>
-
-        {/* ✅ Login Button Top-Right */}
         <button
           onClick={handleLoginClick}
-          className="absolute top-6 right-6 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg hover:bg-blue-700 transition"
+          className="absolute top-4 right-4 bg-blue-600 text-white px-3 py-2 rounded-lg shadow-lg hover:bg-blue-700 transition text-sm sm:text-base"
         >
           Login
         </button>
       </section>
 
-   {/* About Us */}
-<section className="py-16 px-4 md:px-20 bg-cyan-50">
-  <div className="max-w-3xl mx-auto text-center">
-    <h2 className="text-4xl md:text-5xl font-extrabold mb-6 text-black-600">
-      About Us
-    </h2>
-    <p>EduConnectt is an online platform that connects teachers and students for virtual after-school classes. We offer both GES and Cambridge curricula. 
-EduConnectt is designed for parents and guardians who want to register their children for online after-school classes. Our platform allows educators to focus on teaching, providing parents with a good return on their investment. We also offer easy access to children's academic performance and mitigate issues associated with traditional home tuition. Additionally, students can enhance their tech skills.</p>
-
-    <h3 className="text-gray-700 text-lg md:text-xl leading-relaxed mb-6">Register today for tracked results!</h3>
-  </div>
-</section>
-
+      {/* About Us */}
+      <section className="py-12 px-4 sm:px-8 md:px-20 bg-cyan-50 text-center">
+        <h2 className="text-3xl sm:text-4xl md:text-5xl font-extrabold mb-4">About Us</h2>
+        <p className="text-sm sm:text-base md:text-lg max-w-3xl mx-auto mb-4">
+          EduConnectt is an online platform that connects teachers and students for virtual after-school classes. We offer both GES and Cambridge curricula.
+          EduConnectt is designed for parents and guardians who want to register their children for online after-school classes. Our platform allows educators to focus on teaching, providing parents with a good return on their investment. We also offer easy access to children's academic performance and mitigate issues associated with traditional home tuition. Additionally, students can enhance their tech skills.
+        </p>
+        <h3 className="text-gray-700 text-base sm:text-lg md:text-xl font-medium">
+          Register today for tracked results!
+        </h3>
+      </section>
 
       {/* Packages Section */}
-      <section className="py-16 px-4 md:px-20 bg-gradient-to-r from-cyan-100 to-blue-50">
-        <h2 className="text-3xl font-bold text-center mb-10">Our Packages</h2>
+      <section className="py-12 px-4 sm:px-8 md:px-20 bg-gradient-to-r from-cyan-100 to-blue-50">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8">
+          Our Packages
+        </h2>
         <Slider {...settings}>
           {packages.map((pkg) => (
-            <div key={pkg.title} className="p-2">
-              <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:scale-105 transform transition-transform duration-300 w-60 md:w-64">
-                <img
-                  src={pkg.img}
-                  alt={pkg.title}
-                  className="w-full h-40 object-cover"
-                />
+            <div key={pkg.title} className="p-2 flex justify-center">
+              <div className="bg-white rounded-xl shadow-lg overflow-hidden hover:scale-105 transform transition-transform duration-300 w-56 sm:w-64 md:w-72">
+                <img src={pkg.img} alt={pkg.title} className="w-full h-40 object-cover" />
                 <div className="p-4">
                   <h3 className="text-lg font-semibold mb-1">{pkg.title}</h3>
                   <p className="text-gray-600 text-sm">{pkg.description}</p>
@@ -155,27 +127,29 @@ EduConnectt is designed for parents and guardians who want to register their chi
       </section>
 
       {/* Role Selection */}
-      <section className="py-16 bg-gradient-to-r from-blue-100 to-cyan-200">
-        <h2 className="text-3xl font-bold text-center mb-10">Choose Your Role</h2>
-        <div className="flex flex-col md:flex-row justify-center items-center gap-8 px-4 md:px-20">
+      <section className="py-12 px-4 sm:px-8 md:px-20 bg-gradient-to-r from-blue-100 to-cyan-200">
+        <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-center mb-8">
+          Choose Your Role
+        </h2>
+        <div className="flex flex-col sm:flex-row justify-center items-center gap-6 sm:gap-8">
           {[
             {
               name: "Student",
-              icon: <FaUserGraduate size={48} className="text-blue-600" />,
+              icon: <FaUserGraduate size={40} className="text-blue-600" />,
             },
             {
               name: "Teacher",
-              icon: <FaChalkboardTeacher size={48} className="text-blue-600" />,
+              icon: <FaChalkboardTeacher size={40} className="text-blue-600" />,
             },
           ].map((role) => (
             <div
               key={role.name}
               onClick={() => handleRoleClick(role.name)}
-              className="cursor-pointer bg-white rounded-xl shadow-lg p-8 flex flex-col items-center justify-center gap-4 transform transition-transform duration-300 hover:scale-110 hover:shadow-2xl w-64 md:w-72"
+              className="cursor-pointer bg-white rounded-xl shadow-lg p-6 sm:p-8 flex flex-col items-center justify-center gap-2 sm:gap-4 transform transition-transform duration-300 hover:scale-105 hover:shadow-2xl w-56 sm:w-64"
             >
               {role.icon}
-              <h3 className="text-xl font-semibold">{role.name}</h3>
-              <p className="text-center text-gray-600">
+              <h3 className="text-lg sm:text-xl font-semibold">{role.name}</h3>
+              <p className="text-center text-gray-600 text-sm sm:text-base">
                 Click to register as a {role.name.toLowerCase()}
               </p>
             </div>
@@ -184,44 +158,23 @@ EduConnectt is designed for parents and guardians who want to register their chi
       </section>
 
       {/* Footer */}
-      <footer className="py-10 bg-gray-800 text-white text-center">
+      <footer className="py-6 sm:py-10 bg-gray-800 text-white text-center">
         <p className="mb-4">Follow us on social media</p>
-        <div className="flex justify-center gap-6 text-2xl">
-          <a
-            href="https://facebook.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-blue-500"
-          >
+        <div className="flex justify-center gap-4 sm:gap-6 text-xl sm:text-2xl">
+          <a href="https://facebook.com" target="_blank" rel="noopener noreferrer" className="hover:text-blue-500">
             <FaFacebookF />
           </a>
-          <a
-            href="https://twitter.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-green-400"
-          >
+          <a href="https://twitter.com" target="_blank" rel="noopener noreferrer" className="hover:text-green-400">
             <FaTwitter />
           </a>
-          <a
-            href="https://instagram.com"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="hover:text-pink-500"
-          >
+          <a href="https://instagram.com" target="_blank" rel="noopener noreferrer" className="hover:text-pink-500">
             <FaInstagram />
           </a>
         </div>
-        <p className="text-sm text-gray-500 text-center mt-6">
-  © 2025 EduConnect. All rights reserved.
-</p>
-
+        <p className="text-sm text-gray-500 mt-4">© 2025 EduConnect. All rights reserved.</p>
       </footer>
     </div>
   );
 };
-
-
-
 
 export default LandingPage;

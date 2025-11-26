@@ -7,7 +7,6 @@ const RegisterCoursePage = () => {
   const navigate = useNavigate();
   const [selectedCurriculum, setSelectedCurriculum] = useState(null);
 
-  // UI curricula
   const curricula = [
     {
       name: "GES",
@@ -23,29 +22,26 @@ const RegisterCoursePage = () => {
     },
   ];
 
-  // package UI cards (code is DB package suffix)
   const curriculumPackagesUI = {
     GES: [
-      { code: "EC", name: "Extra Classes", description: "Enhance your learning after school.", duration: "3 months" },
-      { code: "HS", name: "Home Tuition", description: "Private lessons at home.", duration: "3 months" },
-      { code: "VC", name: "Vacation Classes", description: "Learn and have fun during vacations.", duration: "1 months" },
-      { code: "SC", name: "Special Classes", description: "Tailored group special classes.",duration: "1 months" },
-      { code: "OC", name: "One on One Classes", description: "Personalized learning.", duration: "1 months" },
-      { code: "EPC", name: "Exams Prep Classes", description: "Get ready for exams confidently.", duration: "3 months" },
-      { code: "WC", name: "Weekend Classes", description: "Learn smarter every weekend.", duration: "3 months" },
+      { code: "EC", name: "Extra Classes", description: "Enhance your learning after school.", duration: "3 months", image:"/packages/extra-classes.png" },
+      { code: "HS", name: "Home Tuition", description: "Private lessons at home.", duration: "3 months", image:"/packages/pexels-naomi-shi-374023-1001914.jpg" },
+      { code: "VC", name: "Vacation Classes", description: "Learn and have fun during vacations.", duration: "1 months", image:"/packages/pexels-anastasia-shuraeva-8466704.jpg" },
+      { code: "SC", name: "Special Classes", description: "Tailored group special classes.",duration: "1 months", image:"/packages/pexels-fauxels-3184468.jpg" },
+      { code: "OC", name: "One on One Classes", description: "Personalized learning.", duration: "1 months", image:"/packages/pexels-max-fischer-5212335.jpg" },
+      { code: "EPC", name: "Exams Prep Classes", description: "Get ready for exams confidently.", duration: "3 months", image:"/packages/pexels-mikhail-nilov-9159042.jpg" },
+      { code: "WC", name: "Weekend Classes", description: "Learn smarter every weekend.", duration: "3 months", image:"/packages/pexels-naomi-shi-374023-1001914.jpg" },
     ],
-    Cambridge: [
-      { code: "EC", name: "Extra Classes", description: "Additional lessons.", duration: "3 months" },
-      { code: "WC", name: "Weekend Classes", description: "Extra weekend learning.", duration: "3 months" },
-      { code: "OC", name: "One on One Classes", description: "Personalized teaching.", duration: "1 months" },
-      { code: "EPC", name: "Exams Prep Classes", description: "Extra help for students.", duration: "3 months" },
-      
-      { code: "SC", name: "Special Classes", description: "Special intensive classes.", duration: "1 months" },
-      
-    ],
-  };
 
-  // exact grade strings used in DB (confirmed)
+    Cambridge: [
+      { code: "EC", name: "Extra Classes", description: "Additional lessons.", duration: "3 months", image:"/packages/extra-classes.png" },
+      { code: "WC", name: "Weekend Classes", description: "Extra weekend learning.", duration: "3 months", image:"/packages/pexels-tima-miroshnichenko-5427648.jpg" },
+      { code: "OC", name: "One on One Classes", description: "Personalized teaching.", duration: "1 months", image:"/packages/pexels-max-fischer-5212335.jpg" },
+      { code: "EPC", name: "Exams Prep Classes", description: "Extra help for students.", duration: "3 months", image:"/packages/pexels-mikhail-nilov-9159042.jpg" },
+      { code: "SC", name: "Special Classes", description: "Special intensive classes.", duration: "1 months", image:"/packages/pexels-fauxels-3184468.jpg" },
+    ],
+  };  
+
   const gradeOptionsByCurriculum = {
     GES: ["4", "5-6", "JHS 1-3", "SHS 1-3"],
     Cambridge: ["Stage 4-6", "Stage 7-11", "Stage 12-13"],
@@ -53,18 +49,14 @@ const RegisterCoursePage = () => {
 
   const currentTheme = curricula.find((c) => c.name === selectedCurriculum);
 
-  // helper: convert UI curriculum & package to DB package key
-  // e.g. GES + EC -> "GES-EC", Cambridge + EC -> "CAM-EC"
   const makePackageKey = (curriculumName, pkgCode) => {
     const prefix = curriculumName.toUpperCase() === "CAMBRIDGE" ? "CAM" : "GES";
     return `${prefix}-${pkgCode}`;
   };
 
-  // When user clicks a curriculum tile
   const handleCurriculumSelect = (curriculumName) => {
     setSelectedCurriculum(curriculumName);
 
-    // If teacher, immediately go to complete signup (teacher flow)
     if (role === "teacher") {
       const registration = {
         curriculum: curriculumName,
@@ -78,38 +70,37 @@ const RegisterCoursePage = () => {
   };
 
   const handlePackageClick = (pkg) => {
-  if (!selectedCurriculum || !pkg) return;
+    if (!selectedCurriculum || !pkg) return;
 
-  const packageKey = makePackageKey(selectedCurriculum, pkg.code);
-  const grades = gradeOptionsByCurriculum[selectedCurriculum] || [];
-  const defaultGrade = grades[0] || "";
+    const packageKey = makePackageKey(selectedCurriculum, pkg.code);
+    const grades = gradeOptionsByCurriculum[selectedCurriculum] || [];
+    const defaultGrade = grades[0] || "";
 
-  const registration = {
-    curriculum: selectedCurriculum,
-    package: packageKey,
-    grade: defaultGrade,
-    duration: pkg.duration,
+    const registration = {
+      curriculum: selectedCurriculum,
+      package: packageKey,
+      grade: defaultGrade,
+      duration: pkg.duration,
+    };
+
+    localStorage.setItem("registrationData", JSON.stringify(registration));
+    navigate(`/auth-form/${role}`, { state: registration });
   };
-
-  // store and pass to AuthForm
-  localStorage.setItem("registrationData", JSON.stringify(registration));
-  navigate(`/auth-form/${role}`, { state: registration });
-};
 
   return (
     <div
-      className={`min-h-screen flex flex-col items-center py-16 px-4 ${selectedCurriculum ? "bg-gray-50" : "bg-gradient-to-b from-cyan-50 to-blue-50"
-        }`}
+      className={`min-h-screen flex flex-col items-center py-16 px-4 ${
+        selectedCurriculum ? "bg-gray-50" : "bg-gradient-to-b from-cyan-50 to-blue-50"
+      }`}
     >
       <h2 className="text-3xl md:text-4xl font-bold mb-10 text-center text-gray-900">
         {!selectedCurriculum
           ? `Select Curriculum (${role ? role.charAt(0).toUpperCase() + role.slice(1) : "User"})`
           : role === "student"
-            ? `${selectedCurriculum} Packages`
-            : `${selectedCurriculum} Curriculum`}
+          ? `${selectedCurriculum} Packages`
+          : `${selectedCurriculum} Curriculum`}
       </h2>
 
-      {/* Curriculum selection view */}
       {!selectedCurriculum && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-8 w-full max-w-6xl">
           {curricula.map((c) => (
@@ -125,7 +116,6 @@ const RegisterCoursePage = () => {
         </div>
       )}
 
-      {/* Packages view for students */}
       {selectedCurriculum && role === "student" && (
         <>
           <button
@@ -135,22 +125,27 @@ const RegisterCoursePage = () => {
             &larr; Back to Curriculum
           </button>
 
-          {/* package cards */}
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-8 w-full max-w-6xl">
             {curriculumPackagesUI[selectedCurriculum].map((pkg) => (
               <div
                 key={pkg.code}
                 onClick={() => handlePackageClick(pkg)}
                 className={`cursor-pointer bg-gradient-to-br ${currentTheme.packageGradient} rounded-xl shadow-lg hover:scale-105 transform transition-transform overflow-hidden`}
-                role="button"
-                tabIndex={0}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handlePackageClick(pkg);
-                }}
               >
-                {/* image placeholder - keep as is or replace */}
-                <div className="w-full h-44 bg-gray-200 flex items-center justify-center">
-                  <span className="text-gray-700 font-medium">{pkg.code}</span>
+              
+                {/* IMAGE DISPLAY FIX */}
+                <div className="w-full h-44 overflow-hidden flex items-center justify-center">
+                  {pkg.image ? (
+                    <img
+                      src={pkg.image}
+                      alt={pkg.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <div className="w-full h-full bg-gray-200 flex items-center justify-center">
+                      <span className="text-gray-700 font-medium">{pkg.code}</span>
+                    </div>
+                  )}
                 </div>
 
                 <div className="p-5">

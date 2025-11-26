@@ -7,6 +7,43 @@ import Teacher from "../models/teacher.js";
 import Student from "../models/Student.js";
 
 const router = express.Router();
+// ==================== TEACHER LOGIN ====================
+router.post("/login", async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!email || !password)
+      return res.status(400).json({ message: "Email and password are required" });
+
+    const teacher = await Teacher.findOne({ email });
+    if (!teacher)
+      return res.status(404).json({ message: "Teacher not found" });
+
+    const isMatch = await bcrypt.compare(password, teacher.password);
+    if (!isMatch)
+      return res.status(400).json({ message: "Invalid email or password" });
+
+    // ✅ Return token and role
+    res.status(200).json({
+      success: true,
+      message: "Login successful",
+      token: "DUMMY_OR_JWT_TOKEN_HERE", // replace with JWT if needed
+      data: {
+        _id: teacher._id,
+        fullName: teacher.fullName,
+        email: teacher.email,
+        curriculum: teacher.curriculum,
+        role: "Teacher", // important
+      },
+    });
+  } catch (err) {
+    console.error("Teacher login error:", err);
+    res.status(500).json({ message: "Server error during teacher login" });
+  }
+});
+
+
+
 
 // ==================== TEACHER SIGNUP ====================
 router.post("/", async (req, res) => {
@@ -41,14 +78,16 @@ router.post("/", async (req, res) => {
 });
 
 // ==================== TEACHER DASHBOARD ====================
-router.get("/dashboard", async (req, res) => {
+// NEW
+router.get("/dashboard/:id", async (req, res) => {
   try {
-    const teacherId = req.query.id; // For now, use query param
+    const teacherId = req.params.id; // now comes from URL
+
     if (!teacherId) return res.status(400).json({ message: "Teacher ID required" });
 
     const teacher = await Teacher.findById(teacherId)
       .populate("assignmentsGiven")
-      .populate("subjects");
+      .populate("subjectsTeaching");
 
     if (!teacher) return res.status(404).json({ message: "Teacher not found" });
 
@@ -58,6 +97,7 @@ router.get("/dashboard", async (req, res) => {
     res.status(500).json({ message: "Server error fetching teacher dashboard" });
   }
 });
+
 
 // ==================== FORGOT PASSWORD (Send reset link) ====================
 router.post("/forget-password", async (req, res) => {

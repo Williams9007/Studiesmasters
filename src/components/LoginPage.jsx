@@ -19,13 +19,12 @@ export default function LoginPage() {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // ✅ Handle login
   const handleLogin = async (e) => {
     e.preventDefault();
     setLoading(true);
 
     try {
-      // Pick the correct login endpoint
+      // Determine endpoint
       const endpoint =
         role === "teacher"
           ? "http://localhost:5000/api/teachers/login"
@@ -37,28 +36,41 @@ export default function LoginPage() {
         body: JSON.stringify({ email, password }),
       });
 
-      // ✅ Safely check if backend returned JSON
       const text = await response.text();
       let data;
       try {
         data = JSON.parse(text);
       } catch (err) {
-        console.error("Response not JSON:", text);
         alert("Login failed: invalid server response.");
+        setLoading(false);
         return;
       }
 
-      // ✅ Successful login
-      if (response.ok) {
-        localStorage.setItem("token", data.token);
-        localStorage.setItem("userId", data.user._id);
-        alert("Login successful!");
+      if (role === "teacher") {
+  if (response.ok && data.success) {
+    const teacher = data.data; // contains _id and role
+    localStorage.setItem("token", data.token);
+    localStorage.setItem("userId", teacher._id);
+    localStorage.setItem("role", teacher.role); // store role too
 
-        // Redirect based on role
-        if (role === "student") navigate("/student/dashboard");
-        else navigate("/teacher/dashboard");
+    alert("Teacher login successful!");
+    navigate(`/teacher/dashboard/${teacher._id}`); // redirect
+  } else {
+    alert(data.message || "Teacher login failed.");
+  }
+  return;
+}
+
+
+      // Student login
+      if (response.ok && data.success) {
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("userId", data.data._id);
+
+        alert("Student login successful!");
+        navigate("/student/dashboard");
       } else {
-        alert(data.message || "Login failed.");
+        alert(data.message || "Student login failed.");
       }
     } catch (err) {
       console.error("Login error:", err);
@@ -68,7 +80,6 @@ export default function LoginPage() {
     }
   };
 
-  // ✅ Forgot password handler
   const handleForgotPassword = () => {
     navigate("/forget-password");
   };
@@ -80,9 +91,7 @@ export default function LoginPage() {
           <CardTitle className="text-2xl font-bold text-gray-800">
             EduConnect Login
           </CardTitle>
-          <p className="text-sm text-gray-500 mt-1">
-            Welcome back! Please log in
-          </p>
+          <p className="text-sm text-gray-500 mt-1">Welcome back! Please log in</p>
         </CardHeader>
 
         <CardContent>
@@ -129,8 +138,6 @@ export default function LoginPage() {
                 onChange={(e) => setPassword(e.target.value)}
                 className="focus:ring-2 focus:ring-blue-500"
               />
-
-              {/* Forgot password link */}
               <p
                 className="text-sm text-blue-600 mt-1 cursor-pointer hover:underline"
                 onClick={handleForgotPassword}
