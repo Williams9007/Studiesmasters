@@ -11,6 +11,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { BookOpen, User, Bell, CheckCircle, Send, LogOut, Menu } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
+const BASE_URL = "https://studiesmasters-backend-2.onrender.com";
+
 export function TeacherDashboard({ user = {}, onLogout }) {
   const navigate = useNavigate();
   const [token, setToken] = useState(null);
@@ -45,38 +47,73 @@ export function TeacherDashboard({ user = {}, onLogout }) {
     fetchMessages();
     fetchStudents();
     fetchAssignments();
-  }, [user._id]);
+  }, [user._id, token]);
 
   // --- Fetch functions ---
   const fetchSubjects = async () => {
     if (!user._id || !token) return;
-    try { const res = await fetch(`/api/teacher/${user._id}/subjects`, { headers: { Authorization: `Bearer ${token}` } }); const data = await res.json(); setSubjects(data || []); } catch (err) { console.error(err); }
+    try {
+      const res = await fetch(`${BASE_URL}/api/teachers/${user._id}/subjects`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setSubjects(data || []);
+    } catch (err) { console.error(err); }
   };
+
   const fetchStudents = async () => {
     if (!user._id || !token) return;
-    try { const res = await fetch(`/api/teacher/${user._id}/students`, { headers: { Authorization: `Bearer ${token}` } }); const data = await res.json(); setStudents(data || []); } catch (err) { console.error(err); }
+    try {
+      const res = await fetch(`${BASE_URL}/api/teachers/${user._id}/students`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setStudents(data || []);
+    } catch (err) { console.error(err); }
   };
+
   const fetchAssignments = async () => {
     if (!user._id || !token) return;
-    try { const res = await fetch(`/api/teacher/${user._id}/assignments`, { headers: { Authorization: `Bearer ${token}` } }); const data = await res.json(); setAssignments(data || []); } catch (err) { console.error(err); }
+    try {
+      const res = await fetch(`${BASE_URL}/api/teachers/${user._id}/assignments`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      setAssignments(data || []);
+    } catch (err) { console.error(err); }
   };
+
   const fetchBroadcasts = async () => {
     if (!user._id || !token) return;
     try {
-      const res = await fetch(`/api/teacher/${user._id}/broadcasts`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${BASE_URL}/api/teachers/${user._id}/broadcasts`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       setBroadcasts(data || []);
-      const newActs = (data || []).map(b => ({ type: "broadcast", subject: b.subjectName || "General", message: b.message, time: new Date(b.createdAt).toLocaleString() }));
+      const newActs = (data || []).map(b => ({
+        type: "broadcast",
+        subject: b.subjectName || "General",
+        message: b.message,
+        time: new Date(b.createdAt).toLocaleString()
+      }));
       setActivities(prev => [...newActs, ...prev]);
     } catch (err) { console.error(err); }
   };
+
   const fetchMessages = async () => {
     if (!user._id || !token) return;
     try {
-      const res = await fetch(`/api/messages/teacher/${user._id}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${BASE_URL}/api/messages/teacher/${user._id}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
       const data = await res.json();
       setMessages(data || []);
-      const msgActs = (data || []).map(m => ({ type: "message", message: m.content, time: new Date(m.date).toLocaleString() }));
+      const msgActs = (data || []).map(m => ({
+        type: "message",
+        message: m.content,
+        time: new Date(m.date).toLocaleString()
+      }));
       setActivities(prev => [...msgActs, ...prev]);
     } catch (err) { console.error(err); }
   };
@@ -86,24 +123,51 @@ export function TeacherDashboard({ user = {}, onLogout }) {
     if (!broadcastMessage.trim() || !broadcastSubject) return alert("Please complete all fields");
     setSending(true);
     try {
-      const res = await fetch("/api/teacher/broadcast", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ teacherId: user._id, subjectId: broadcastSubject, message: broadcastMessage }) });
-      if (res.ok) { addNotification("Broadcast sent ✅"); setBroadcastMessage(""); fetchBroadcasts(); }
+      const res = await fetch(`${BASE_URL}/api/teachers/broadcast`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ teacherId: user._id, subjectId: broadcastSubject, message: broadcastMessage })
+      });
+      if (res.ok) {
+        addNotification("Broadcast sent ✅");
+        setBroadcastMessage("");
+        fetchBroadcasts();
+      }
     } catch (err) { console.error(err); } finally { setSending(false); }
   };
+
   const handlePostAssignment = async () => {
     if (!newAssignment.title || !newAssignment.description || !newAssignment.subjectId) return alert("Complete all fields");
     try {
-      const res = await fetch("/api/teacher/assignments", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ ...newAssignment, teacherId: user._id }) });
-      if (res.ok) { addNotification("Assignment posted ✅"); setNewAssignment({ title: "", description: "", className: "", subjectId: "" }); fetchAssignments(); }
+      const res = await fetch(`${BASE_URL}/api/teachers/assignments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ ...newAssignment, teacherId: user._id })
+      });
+      if (res.ok) {
+        addNotification("Assignment posted ✅");
+        setNewAssignment({ title: "", description: "", className: "", subjectId: "" });
+        fetchAssignments();
+      }
     } catch (err) { console.error(err); }
   };
+
   const handleReply = async (e, msgId) => {
     e.preventDefault();
     const replyText = replies[msgId];
     if (!replyText?.trim()) return;
     try {
-      const res = await fetch(`/api/messages/reply/${msgId}`, { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ reply: replyText, teacherId: user._id }) });
-      if (res.ok) { setReplies(prev => ({ ...prev, [msgId]: "" })); fetchMessages(); addNotification("Reply sent ✅"); setActivities(prev => [{ type: "reply", message: replyText, time: new Date().toLocaleString() }, ...prev]); }
+      const res = await fetch(`${BASE_URL}/api/messages/reply/${msgId}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ reply: replyText, teacherId: user._id })
+      });
+      if (res.ok) {
+        setReplies(prev => ({ ...prev, [msgId]: "" }));
+        fetchMessages();
+        addNotification("Reply sent ✅");
+        setActivities(prev => [{ type: "reply", message: replyText, time: new Date().toLocaleString() }, ...prev]);
+      }
     } catch (err) { console.error(err); }
   };
 
@@ -113,7 +177,12 @@ export function TeacherDashboard({ user = {}, onLogout }) {
     setRecentMessage(message);
     setTimeout(() => setRecentMessage(null), 5000);
   };
-  const handleLogout = () => { if (onLogout) onLogout(); localStorage.removeItem("token"); navigate("/login"); };
+
+  const handleLogout = () => {
+    if (onLogout) onLogout();
+    localStorage.removeItem("token");
+    navigate("/login");
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 to-emerald-50">
