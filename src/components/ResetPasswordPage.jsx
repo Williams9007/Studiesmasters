@@ -4,11 +4,13 @@ import { Card, CardHeader, CardTitle, CardContent } from "./ui/card";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 
+const BASE_URL = "https://studiesmasters-backend-2.onrender.com";
+
 export default function ResetPasswordPage() {
   const { token } = useParams();
   const navigate = useNavigate();
 
-  const [role, setRole] = useState("student"); // ✅ choose who is resetting
+  const [role, setRole] = useState("student"); // choose who is resetting
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -28,11 +30,11 @@ export default function ResetPasswordPage() {
 
     setLoading(true);
     try {
-      // ✅ Use correct backend route based on role
+      // Use deployed backend route
       const endpoint =
         role === "teacher"
-          ? `http://localhost:5000/api/teachers/reset-password/${token}`
-          : `http://localhost:5000/api/students/reset-password/${token}`;
+          ? `${BASE_URL}/api/teachers/reset-password/${token}`
+          : `${BASE_URL}/api/students/reset-password/${token}`;
 
       const response = await fetch(endpoint, {
         method: "POST",
