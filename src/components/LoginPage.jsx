@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from "./ui/select";
 
+const BASE_URL = "https://studiesmasters-backend-2.onrender.com";
+
 export default function LoginPage() {
   const navigate = useNavigate();
 
@@ -24,11 +26,11 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      // Determine endpoint
+      // Determine endpoint based on role
       const endpoint =
         role === "teacher"
-          ? "http://localhost:5000/api/teachers/login"
-          : "http://localhost:5000/api/students/login";
+          ? `${BASE_URL}/api/teachers/login`
+          : `${BASE_URL}/api/students/login`;
 
       const response = await fetch(endpoint, {
         method: "POST",
@@ -47,20 +49,19 @@ export default function LoginPage() {
       }
 
       if (role === "teacher") {
-  if (response.ok && data.success) {
-    const teacher = data.data; // contains _id and role
-    localStorage.setItem("token", data.token);
-    localStorage.setItem("userId", teacher._id);
-    localStorage.setItem("role", teacher.role); // store role too
+        if (response.ok && data.success) {
+          const teacher = data.data; // contains _id and role
+          localStorage.setItem("token", data.token);
+          localStorage.setItem("userId", teacher._id);
+          localStorage.setItem("role", teacher.role); // store role too
 
-    alert("Teacher login successful!");
-    navigate(`/teacher/dashboard/${teacher._id}`); // redirect
-  } else {
-    alert(data.message || "Teacher login failed.");
-  }
-  return;
-}
-
+          alert("Teacher login successful!");
+          navigate(`/teacher/dashboard/${teacher._id}`);
+        } else {
+          alert(data.message || "Teacher login failed.");
+        }
+        return;
+      }
 
       // Student login
       if (response.ok && data.success) {
