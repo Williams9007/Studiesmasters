@@ -64,7 +64,8 @@ export function AuthForm() {
     setSubjectsLoading(true);
     try {
       const res = await fetch(
-        `http://localhost:5000/api/subjects/by-package/${encodeURIComponent(pkgKey)}?grade=${encodeURIComponent(grade)}`
+      `https://studiesmasters-backend-2.onrender.com/api/subjects/by-package/${encodeURIComponent(pkgKey)}?grade=${encodeURIComponent(grade)}`
+
       );
       if (!res.ok) throw new Error("No subjects found for this grade");
       const data = await res.json();
