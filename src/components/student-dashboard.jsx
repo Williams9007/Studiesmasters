@@ -13,6 +13,8 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "./ui/tabs";
 import { Button } from "./ui/button";
 import { User, BookOpen, Bell, Upload } from "lucide-react";
 
+const BASE_URL = "https://studiesmasters-backend-2.onrender.com";
+
 export function StudentDashboard({ user = {} }) {
   const [studentData, setStudentData] = useState({});
   const [subjects, setSubjects] = useState([]);
@@ -29,7 +31,8 @@ export function StudentDashboard({ user = {} }) {
         const token = localStorage.getItem("token");
         if (!token) return navigate("/login");
 
-        const studentRes = await fetch("http://localhost:5000/api/students/me", {
+        // Fetch student info
+        const studentRes = await fetch(`${BASE_URL}/api/students/me`, {
           headers: { Authorization: `Bearer ${token}` },
         });
         if (!studentRes.ok) throw new Error("Failed to fetch student info");
@@ -38,31 +41,31 @@ export function StudentDashboard({ user = {} }) {
         setStudentData(studentInfo);
         const studentId = studentInfo._id;
 
-        const subjectsRes = await fetch(
-          `http://localhost:5000/api/students/${studentId}/subjects`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        // Fetch subjects
+        const subjectsRes = await fetch(`${BASE_URL}/api/students/${studentId}/subjects`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const subjectData = subjectsRes.ok ? await subjectsRes.json() : [];
         setSubjects(subjectData);
 
-        const broadcastRes = await fetch(
-          `http://localhost:5000/api/students/broadcasts/${studentId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        // Fetch broadcasts
+        const broadcastRes = await fetch(`${BASE_URL}/api/students/broadcasts/${studentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const broadcastData = broadcastRes.ok ? await broadcastRes.json() : [];
         setBroadcasts(broadcastData);
 
-        const paymentRes = await fetch(
-          `http://localhost:5000/api/students/payments/${studentId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        // Fetch payment history
+        const paymentRes = await fetch(`${BASE_URL}/api/students/payments/${studentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const paymentData = paymentRes.ok ? await paymentRes.json() : [];
         setPaymentHistory(Array.isArray(paymentData) ? paymentData : []);
 
-        const assignmentRes = await fetch(
-          `http://localhost:5000/api/students/assignments/${studentId}`,
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        // Fetch assignments
+        const assignmentRes = await fetch(`${BASE_URL}/api/students/assignments/${studentId}`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
         const assignmentData = assignmentRes.ok ? await assignmentRes.json() : [];
         setAssignments(Array.isArray(assignmentData) ? assignmentData : []);
 
@@ -87,10 +90,10 @@ export function StudentDashboard({ user = {} }) {
       if (mode === "typed") formData.append("typedAnswer", content);
       else formData.append("file", content);
 
-      const res = await fetch(
-        `http://localhost:5000/api/students/assignments/submit/${assignmentId}`,
-        { method: "POST", body: formData }
-      );
+      const res = await fetch(`${BASE_URL}/api/students/assignments/submit/${assignmentId}`, {
+        method: "POST",
+        body: formData,
+      });
       const data = await res.json();
       alert(data.message || "Assignment submitted!");
     } catch (error) {
@@ -367,7 +370,7 @@ export function StudentDashboard({ user = {} }) {
 
                         {p.screenshot && (
                           <img
-                            src={`http://localhost:5000${p.screenshot}`}
+                            src={`${BASE_URL}${p.screenshot}`}
                             alt="proof"
                             className="w-full sm:w-20 h-20 object-cover rounded-lg border"
                           />
