@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 
+const BASE_URL = "https://studiesmasters-backend-2.onrender.com";
+
 const PaymentPage = () => {
   const location = useLocation();
   const navigate = useNavigate();
@@ -34,9 +36,7 @@ const PaymentPage = () => {
   const handleFileChange = (e) => {
     const selectedFile = e.target.files[0];
     setFile(selectedFile);
-    if (selectedFile) {
-      setPreview(URL.createObjectURL(selectedFile));
-    }
+    if (selectedFile) setPreview(URL.createObjectURL(selectedFile));
   };
 
   const handleFileUpload = async () => {
@@ -50,34 +50,29 @@ const PaymentPage = () => {
     try {
       const formData = new FormData();
       formData.append("studentId", user._id);
-      formData.append("studentName", fullName);          // ✅ Send studentName
+      formData.append("studentName", fullName);
       formData.append("curriculum", curriculum);
       formData.append("package", packageName);
       formData.append("grade", grade);
-      formData.append("subjects", subjectList.join(",")); // send as CSV
+      formData.append("subjects", subjectList.join(","));
       formData.append("amount", totalAmount);
-      formData.append("duration", duration);             // ✅ Send duration
+      formData.append("duration", duration);
       formData.append("referenceName", `${fullName}-${Date.now()}`);
       formData.append("transactionDate", new Date().toISOString());
       formData.append("screenshot", file);
 
-      const res = await fetch("http://localhost:5000/api/payments/submit", {
+      const res = await fetch(`${BASE_URL}/api/students/payments/submit`, {
         method: "POST",
         body: formData,
       });
 
       const result = await res.json();
-
       if (!res.ok) throw new Error(result.message || "Payment submission failed");
 
       setUploadMessage("✅ Payment submitted successfully!");
-
-      // Optional: save last payment locally
       localStorage.setItem("lastPayment", JSON.stringify(result.payment));
 
-      setTimeout(() => {
-        navigate("/student/dashboard", { state: { user } });
-      }, 1500);
+      setTimeout(() => navigate("/student/dashboard", { state: { user } }), 1500);
 
     } catch (err) {
       console.error("Payment submission error:", err);
