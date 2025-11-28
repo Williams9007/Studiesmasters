@@ -11,6 +11,8 @@ import {
   SelectValue,
 } from "./ui/select";
 
+const BASE_URL = "https://studiesmasters-backend-2.onrender.com";
+
 export default function ForgetPasswordPage() {
   const navigate = useNavigate();
   const [role, setRole] = useState("student");
@@ -28,19 +30,18 @@ export default function ForgetPasswordPage() {
         return;
       }
 
-      // ✅ Choose correct backend endpoint based on role
+      // ✅ Use deployed backend
       const endpoint =
         role === "teacher"
-          ? "http://localhost:5000/api/teachers/forget-password"
-          : "http://localhost:5000/api/students/forget-password";
+          ? `${BASE_URL}/api/teachers/forget-password`
+          : `${BASE_URL}/api/students/forget-password`;
 
       const response = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email }), // ✅ only send email, not password
+        body: JSON.stringify({ email }),
       });
 
-      // ✅ Safely parse JSON (even if backend sends HTML error)
       let data;
       try {
         data = await response.json();
