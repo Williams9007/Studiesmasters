@@ -1,6 +1,6 @@
 <?php
 // local/studiesmasters_sso/settings.php
-// Admin settings: the shared secret must EXACTLY match MOODLE_SSO_SECRET in the StudiesMasters backend.
+// Admin settings for the enterprise SSO plugin.
 
 defined('MOODLE_INTERNAL') || die();
 
@@ -13,6 +13,15 @@ if ($hassiteconfig) {
         'Shared SSO secret',
         'Must be identical to MOODLE_SSO_SECRET in the StudiesMasters backend .env file.',
         ''
+    ));
+
+    $settings->add(new admin_setting_configtext(
+        'local_studiesmasters_sso/backendverify',
+        'StudiesMasters backend verify URL',
+        'StudiesMasters backend endpoint that verifies the one-time nonce and returns ' .
+        'authoritative profile data. e.g. https://studiesmasters-backend.onrender.com/api/moodle/sso/verify',
+        'https://studiesmasters-backend.onrender.com/api/moodle/sso/verify',
+        PARAM_URL
     ));
 
     $settings->add(new admin_setting_configtext(

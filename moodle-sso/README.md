@@ -1,86 +1,89 @@
-# StudiesMasters <-> Moodle SSO
+# StudiesMasters <-> Moodle — Enterprise SSO & Account Management
 
-Single Sign-On that lets a student/teacher logged into **StudiesMasters** click
-**Start class / Open class** and land already logged into your Moodle LMS
-(`lms.studiesmasters.com`), with their account provisioned into Moodle's MariaDB.
+Single Sign-On plus **backend-authoritative account management** for the
+StudiesMasters → Moodle integration. A student/teacher logged into StudiesMasters
+clicks **Start class / Open class** and lands in Moodle already logged in — while
+**MongoDB remains the single source of truth** for accounts, profiles, and
+enrollments.
+
+## Architecture at a glance
+
+```
+StudiesMasters (React)
+      |  "Open class"  ->  GET /api/moodle/sso   (JWT)
+      v
+Node/Express backend ------- MongoDB (source of truth)
+      |  mints minimal signed URL (identity + nonce + course)
+      v
+Moodle: sso.php (local plugin)
+      |  1. verifies HMAC (shared secret) + timestamp
+      |  2. calls back GET /api/moodle/sso/verify  -> nonce consumed, profile returned
+      |  3. finds-or-creates user by STABLE username, sets session
+      v
+Moodle dashboard / course
+```
+
+Separately, the backend uses **Moodle REST Web Services** to create/update,
+enroll/unenroll, suspend/reactivate and reconcile accounts — Moodle never decides
+who exists; it only reflects what the backend pushes.
 
 ## How it works
 
-```
-Student logs into StudiesMasters → clicks "Open class"
-        │  (frontend dashboard button)
-        ▼
-GET /api/moodle/sso  (StudiesMasters Node backend, Bearer JWT required)
-        │  returns { url: "https://lms.studiesmasters.com/local/studiesmasters_sso/sso.php?username=&email=&timestamp=&course=&signature=" }
-        ▼
-Frontend opens that URL in a new tab
-        ▼
-sso.php (Moodle server) verifies the HMAC signature + expiry,
-        then finds/creates the user in mdl_user and logs them in
-        ▼
-Redirect to the Moodle course / dashboard
-```
+### SSO (login handshake)
+1. `GET /api/moodle/sso` (`routes/moodleRoutes.js`) -> `services/moodle/generateSSO.js`
+   mints a **minimal, HMAC-signed, one-time** URL:
+   ```
+   username | email | timestamp | nonce | course
+   ```
+   - `username` = **stable** id derived from the immutable Mongo `_id`
+     (`sm_s_<hex>` / `sm_t_<hex>`). **Never email** — email stays editable.
+   - `nonce` = random one-time token stored in Redis (preferred) or MongoDB (TTL
+     fallback). Reused nonces are rejected (replay protection).
+2. Frontend opens the URL.
+3. `sso.php` verifies the HMAC + timestamp, then calls
+   `GET /api/moodle/sso/verify` (configured via the plugin's *backend verify URL*)
+   where the nonce is atomically consumed and the authoritative profile is loaded
+   fresh from Mongo (`services/moodle/verifySSO.js`).
+4. Moodle finds-or-creates the user (stable username) and logs them in.
 
-### Signed URL format (must match both sides exactly)
+### Account management (backend is the only authority)
+All lifecycle operations go through `services/moodle/*`:
+- `createUser.js`, `updateUser.js` – provisioning & profile updates
+- `enrollUser.js`, `unenrollUser.js` – course enrollment sync
+- `suspendUser.js` – suspend / reactivate
+- `syncProfile.js` – full idempotent re-sync
+- `courseMapper.js` – subject/package/curriculum -> Moodle course id mapping
+- `queue.js` + `worker.js` – durable job queue (retries, backoff, dead-letter)
+- `reconciliation.js` – periodic MongoDB ↔ Moodle consistency repair
+- `autosync.js` – automatic sync on student changes (opt-in)
+- `audit.js` + `metrics.js` – full audit trail + health/monitoring
 
-Query params produced by the backend and verified by the Moodle plugin (this is
-the wire contract of the **live** plugin on `lms.studiesmasters.com`):
+## Secure by default
+- `MOODLE_DRY_RUN=true` (default) -> runs fully offline; set `MOODLE_WS_ENABLED=true`
+  + `MOODLE_WS_TOKEN` to go live.
+- One-time nonces prevent replay; timestamps are freshness-checked; signatures are
+  timing-safe and support **secret rotation** (`MOODLE_SSO_ACTIVE_ID` /
+  `MOODLE_SSO_SECRETS`).
+- Rate limiting on all Moodle endpoints; admin endpoints JWT-gated.
 
-| Param | Value |
-|-------|-------|
-| `username`  | `strtolower(trim(email))` — used as the stable Moodle username |
-| `email`     | `trim(email)` (NOT lowercased) |
-| `timestamp` | epoch seconds (10 digits; ±300s tolerance) |
-| `course`    | positive integer Moodle course id, or `0` for dashboard |
-| `signature` | `strtolower(hex( HMAC_SHA256( payload, MOODLE_SSO_SECRET ) ))` |
-| `firstname`, `lastname`, `role` | optional |
-
-The signed payload is:
-
-```
-username|email|timestamp|course
-```
-
-using the normalized, exactly-as-sent values (`payload = username + "|" + email + "|" + timestamp + "|" + course`).
-
-The plugin verifies the signature with a timing-safe compare and rejects
-expired tokens.
-
-No password is synced or sent — the signed HMAC URL replaces the password. This
-avoids bcrypt hash-format mismatches and never stores plaintext/password copies.
-
-
-
-## Files in this repo
-
-- `Studiesmasters-backend/routes/moodleRoutes.js` — SSO endpoints (student + teacher)
-- `Studiesmasters-backend/server.js` — mounts `/api/moodle`
-- `studiesmasters-frontend/src/components/student-dashboard.jsx` — "Open class" button
-- `studiesmasters-frontend/src/components/teacher-dashboard.jsx` — "Start class" button
+## Files
+- `Studiesmasters-backend/routes/moodleRoutes.js` — HTTP surface (SSO + admin API)
+- `Studiesmasters-backend/services/moodle/` — service layer (see above)
+- `Studiesmasters-backend/models/{MoodleLink,SsoNonce,SyncJob,MoodleAuditLog,CourseMapping}.js`
+- `studiesmasters-frontend/src/components/*dashboard.jsx` — "Open class"/"Start class" buttons
 - `moodle-sso/local/studiesmasters_sso/` — Moodle local plugin (copy to Moodle server)
 
 ## Setup
 
-### 1. StudiesMasters backend (already done in code)
-Your `.env` must contain:
-```env
-MOODLE_SSO_SECRET=<a long random string shared with Moodle>
-MOODLE_BASE_URL=https://lms.studiesmasters.com
-MOODLE_SSO_PATH=/local/studiesmasters_sso/sso.php
-```
+1. **Backend `.env`** — see `.env.example`: share `MOODLE_SSO_SECRET` with the
+   plugin; set the Moodle base URL. Optional sync: `REDIS_URL`, `MOODLE_WS_*`.
+2. **Moodle** — copy `moodle-sso/local/studiesmasters_sso/` into
+   `your-moodle-dir/local/studiesmasters_sso`, run **Site administration ->
+   Notifications** to upgrade, then set *Shared SSO secret* and *backend verify URL*.
+3. **Custom profile fields** (optional) — create `curriculum`, `grade`, `package`,
+   `subjects` under **Site administration -> Users -> Accounts -> User profile fields**.
+4. **Test** — `cd Studiesmasters-backend && node scripts/sso-self-test.js`.
 
-### 2. Moodle server — install the plugin
-1. Copy the folder `moodle-sso/local/studiesmasters_sso` into
-   `your-moodle-dir/local/studiesmasters_sso` on the Moodle server.
-2. As a Moodle admin, visit **Site administration → Notifications** to run the
-   plugin upgrade.
-3. Go to **Site administration → Plugins → Local plugins → StudiesMasters SSO**
-   and paste the **same** `MOODLE_SSO_SECRET` into *Shared SSO secret*.
-4. (Optional) Set the *Default course ID* to send users straight into a course.
-
-The shared secret must be **identical** on both the Node backend and Moodle, or
-the handshake is rejected.
-
-### 3. Test
-Log into StudiesMasters as a student, click **Open class** → you should land in
-Moodle, logged in, with an account row created in `mdl_user`.
+> **Backwards compatibility note:** the wire contract changed from the old
+> profile-heavy payload to the minimal identity+nonce payload. Both the plugin
+> and the backend must be upgraded together so the handshake stays in sync.

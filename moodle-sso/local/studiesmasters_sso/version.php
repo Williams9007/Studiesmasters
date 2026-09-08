@@ -7,7 +7,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_studiesmasters_sso';
-$plugin->version   = 2024082400; // YYYYMMDDXX
+$plugin->version   = 2026082700; // YYYYMMDDXX
 $plugin->requires  = 2020061500; // Moodle 3.9+
-$plugin->release   = '1.0.0';
+$plugin->release   = '2.0.0';
 $plugin->maturity  = MATURITY_STABLE;
