@@ -8,3 +8,7 @@ $string['badsignature'] = 'Invalid SSO signature. The shared secret does not mat
 $string['tokenexpired'] = 'The SSO token has expired. Please use Start class again.';
 $string['notconfigured'] = 'StudiesMasters SSO is not configured. Set the shared secret in Site administration -> Local plugins.';
 $string['couldnotcreate'] = 'Could not create the Moodle user account from the SSO request.';
+$string['backendunavailable'] = 'The StudiesMasters backend could not be reached. Please try again later.';
+$string['mainwebsiteurl'] = 'Main website sync URL';
+$string['mainwebsitetoken'] = 'Main website sync token';
+$string['mainwebsitewarning'] = 'Main website name sync';

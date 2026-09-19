@@ -132,6 +132,41 @@ if (isset($backendProfile['profile']['fullName'])) {
         if ($user->lastname !== $l)  { $user->lastname  = $l; }
     }
 }
+
+// ---- 5c. Main website name sync (studiesmasters_mainwebsite_sync) ----
+// If the main website sync endpoint is configured, call it to get the real
+// user name and update the Moodle user. Only names are updated — passwords,
+// roles and enrolments are never touched. Best-effort: failures are logged
+// but never block SSO login.
+$mwUrl = get_config('local_studiesmasters_sso', 'mainwebsiteurl');
+$mwTok = get_config('local_studiesmasters_sso', 'mainwebsitetoken');
+if (!empty($mwUrl) && !empty($mwTok)) {
+    $nameSyncResult = null;
+    $nameSyncJoined = (strpos($mwUrl, '?') !== false ? $mwUrl . '&' : $mwUrl . '?')
+        . http_build_query(array(
+            'email' => $email,
+            'token' => $mwTok,
+        ));
+    $nameSyncJson = studiesmasters_http_get($nameSyncJoined);
+    if ($nameSyncJson !== null) {
+        $nameSyncRes = json_decode($nameSyncJson, true);
+        if (is_array($nameSyncRes) && array_key_exists('fullName', $nameSyncRes)) {
+            $nameSyncResult = trim($nameSyncRes['fullName']);
+        }
+    }
+    if ($nameSyncResult !== null && $nameSyncResult !== '') {
+        // Real name from the main website is authoritative (overrides the
+        // backend name which may be stale or a placeholder set at SSO creation).
+        $parts = preg_split('/\s+/', $nameSyncResult);
+        if (!empty($parts)) {
+            $f = array_shift($parts);
+            $l = implode(' ', $parts);
+            if ($user->firstname !== $f) { $user->firstname = $f; }
+            if ($user->lastname !== $l)  { $user->lastname  = $l; }
+        }
+    }
+}
+
 update_user($user);
 
 // ---- 5c. Store backend profile into custom profile fields (optional) ----
