@@ -48,10 +48,12 @@ if ($action !== '') {
     $res = call_backend($backendUrl, $secret, $username, $email, $action, $sessionId);
     if ($res['error']) {
         echo '<div class="alert alert-danger">' . s($res['message']) . '</div>';
-    } elseif ($action === 'join' && isset($res['waiting']) && $res['waiting']) {
-        // Waiting room: class not live yet. Poll until it becomes live, then join.
+    } elseif ($action === 'join' && !empty($res['waiting'])) {
+        // Waiting room: class not live yet — poll until the teacher starts it.
         vc_render_waiting($sessionId, $backendUrl, $secret, $username, $email);
-    } elseif ($action === 'join' && !empty($res['meeting']['link'])) {
+    } elseif (!empty($res['meeting']['link'])) {
+        // join (student or teacher) and start/regenerate all return the Meet
+        // link — open it directly and keep a manual fallback anchor.
         echo '<script>window.open(' . json_encode($res['meeting']['link']) . ',"_blank");</script>';
         echo '<div class="alert alert-success">Opening your Google Meet class. <a target="_blank" rel="noopener" href="' . s($res['meeting']['link']) . '">Open again</a></div>';
     } else {
@@ -60,10 +62,10 @@ if ($action !== '') {
     echo '<p><a href="' . new moodle_url('/local/studiesmasters_virtualclass/index.php') . '" class="vc-btn vc-btn-outline">&laquo; Back to dashboard</a></p>';
 } elseif ($view === 'recordings') {
     $res = call_backend($backendUrl, $secret, $username, $email, 'recordings', '');
-    vc_render_recordings($res['recordings']);
+    vc_render_recordings(isset($res['recordings']) ? $res['recordings'] : array());
 } elseif ($view === 'attendance') {
     $res = call_backend($backendUrl, $secret, $username, $email, 'attendance', '');
-    vc_render_attendance($res['rows'], $role);
+    vc_render_attendance(isset($res['rows']) ? $res['rows'] : array(), $role);
 } else {
     // dashboard
     $res = call_backend($backendUrl, $secret, $username, $email, '', '');
@@ -131,11 +133,21 @@ function call_backend($backendUrl, $secret, $username, $email, $action, $session
         return array('ok' => false, 'error' => true, 'message' => 'Unexpected response from the backend.', 'sessions' => array());
     }
 
+    // Backend business error (e.g. 401 signature, 403 not enrolled) — surface
+    // its message instead of silently showing "Done.". Two shapes exist:
+    // { success:false, message|reason } and { status:>=400, message }.
+    if ((isset($res['success']) && !$res['success'])
+        || (isset($res['status']) && (int) $res['status'] >= 400)) {
+        $msg = isset($res['message']) ? $res['message'] : (isset($res['reason']) ? $res['reason'] : 'The backend rejected this request.');
+        return array('ok' => false, 'error' => true, 'message' => $msg, 'sessions' => array());
+    }
+
     $sessions = isset($res['sessions']) ? $res['sessions'] : array();
-    // A join/start returns a single session + meeting link.
-    if (isset($res['session']) && isset($res['meeting'])) {
-        $box = $res['session'];
+    // A join/start/regenerate returns a single session + meeting link.
+    if (isset($res['meeting'])) {
+        $box = isset($res['session']) && is_array($res['session']) ? $res['session'] : array('sessionId' => $sessionId);
         if (!empty($res['meeting']['link'])) { $box['meetingLink'] = $res['meeting']['link']; }
+        if (!empty($res['meeting']['status'])) { $box['meetingStatus'] = $res['meeting']['status']; }
         $sessions = array($box);
     }
     // The unified /dashboard wrapper nests liveNow/upcoming/history one level deep.
@@ -146,7 +158,15 @@ function call_backend($backendUrl, $secret, $username, $email, $action, $session
             isset($res['history']) ? $res['history'] : array()
         );
     }
-    return array('ok' => true, 'error' => false, 'message' => '', 'sessions' => $sessions);
+    // Keep EVERY original key (waiting, meeting, rows, recordings, liveNow,
+    // upcoming, history, ...) — dropping them broke the waiting-room branch and
+    // made the recordings/attendance/status views render empty.
+    $out = $res;
+    $out['ok'] = true;
+    $out['error'] = false;
+    $out['message'] = '';
+    $out['sessions'] = $sessions;
+    return $out;
 }
 
 /** Minimal didactic HTTP helper (GET/POST, 8s timeout). Returns body or null. */
@@ -238,17 +258,110 @@ function vc_render_status($res, $role) {
     echo html_writer::tag('div', "Connected as {$role}. Live now: {$live} · Upcoming: {$up} · Past: {$hist}.", array('class' => 'alert alert-success'));
 }
 
+/**
+ * Waiting room: the class is not live yet. Auto-reloads this same join URL
+ * every 5s — each reload signs a FRESH request server-side, so the loop keeps
+ * polling until the teacher starts the class, then the join response carries
+ * the Meet link and it opens automatically.
+ */
+function vc_render_waiting($sessionId, $backendUrl, $secret, $username, $email) {
+    $url = new moodle_url('/local/studiesmasters_virtualclass/index.php', array('action' => 'join', 'session' => $sessionId));
+    echo html_writer::tag('div',
+        'You are in the waiting room — the class has not started yet. '
+        . 'This page checks again automatically and opens the Google Meet as soon as the teacher starts the class.',
+        array('class' => 'alert alert-info'));
+    echo html_writer::tag('div',
+        html_writer::link($url, 'Check now', array('class' => 'btn btn-primary')),
+        array('class' => 'mb-3'));
+    echo '<script>setTimeout(function(){ window.location.href = ' . json_encode($url->out(false)) . '; }, 5000);</script>';
+}
+
+/** Unified dashboard: status banner + session cards (Meet link included). */
+function vc_render_dashboard($res, $role) {
+    render_sessions(isset($res['sessions']) ? $res['sessions'] : array(), $role);
+}
+
+/** Recording library cards with direct watch links. */
+function vc_render_recordings($rows) {
+    if (empty($rows) || count($rows) === 0) {
+        echo html_writer::tag('div', 'No recordings yet — recordings appear here after a class ends.', array('class' => 'alert alert-info'));
+        return;
+    }
+    foreach ($rows as $r) {
+        $subject = isset($r['subject']) ? $r['subject'] : '';
+        $grade   = isset($r['grade']) ? $r['grade'] : '';
+        $teacher = isset($r['teacher']) ? $r['teacher'] : '';
+        $date    = isset($r['date']) ? substr((string) $r['date'], 0, 10) : '';
+        $title   = ($subject !== '' ? $subject : 'Virtual Class') . ($grade !== '' ? ' &mdash; ' . $grade : '');
+        $lines = array();
+        if ($teacher !== '') { $lines[] = 'Teacher: ' . $teacher; }
+        if ($date !== '')    { $lines[] = 'Date: ' . $date; }
+        $inner = html_writer::tag('div', $title, array('class' => 'card-title'));
+        if ($lines) {
+            $li = '';
+            foreach ($lines as $ln) { $li .= html_writer::tag('li', $ln); }
+            $inner .= html_writer::tag('ul', $li, array('class' => 'unlist'));
+        }
+        if (!empty($r['recordingLink'])) {
+            $inner .= html_writer::link($r['recordingLink'], 'Watch recording', array('class' => 'btn btn-primary', 'target' => '_blank'));
+        }
+        echo html_writer::tag('div', $inner, array('class' => 'card card-block'));
+    }
+}
+
+/** Attendance history table (teacher: roster counts; student: own record). */
+function vc_render_attendance($rows, $role) {
+    if (empty($rows) || count($rows) === 0) {
+        echo html_writer::tag('div', 'No attendance records yet.', array('class' => 'alert alert-info'));
+        return;
+    }
+    $isTeacher = ($role === 'teacher');
+    $head = array('Class', 'Date', 'Time', 'Status');
+    $head[] = $isTeacher ? 'Present' : 'My record';
+    $data = array();
+    foreach ($rows as $r) {
+        $subject = isset($r['subject']) ? $r['subject'] : '';
+        $grade   = isset($r['grade']) ? $r['grade'] : '';
+        $teacher = isset($r['teacher']) ? $r['teacher'] : '';
+        $cls     = ($subject !== '' ? $subject : 'Virtual Class') . ($grade !== '' ? ' — ' . $grade : '');
+        if ($teacher !== '') { $cls .= ' (Teacher: ' . $teacher . ')'; }
+        $date = isset($r['date']) ? substr((string) $r['date'], 0, 10) : '—';
+        $time = (isset($r['startTime']) ? $r['startTime'] : '—') . ' – ' . (isset($r['endTime']) ? $r['endTime'] : '—');
+        $status = isset($r['status']) ? $r['status'] : '—';
+        if ($isTeacher) {
+            $presence = isset($r['present']) ? ((int) $r['present']) . ' student(s)' : '—';
+        } else {
+            $presence = !empty($r['present'])
+                ? 'Present' . (isset($r['duration']) && $r['duration'] ? ' · ' . (int) $r['duration'] . ' min' : '')
+                : 'Absent';
+        }
+        $data[] = array(s($cls), s($date), s($time), s($status), s($presence));
+    }
+    echo html_writer::table(array('head' => $head, 'data' => $data));
+}
+
 /** Build a relative Moodle URL that triggers an action for a session. */
 function action_link($action, $sid, $label, $btnClass) {
     $url = new moodle_url('/local/studiesmasters_virtualclass/index.php', array('action' => $action, 'session' => $sid));
     return html_writer::link($url, $label, array('class' => 'btn ' . $btnClass));
 }
 
-function header() {
+/**
+ * Page chrome. Named vc_header/vc_footer because a userland `header()` would
+ * collide with PHP's built-in header() ("Cannot redeclare header()" — fatal),
+ * which is exactly why this page used to white-screen on load.
+ * $role drives the nav so students/teachers see the right entry points.
+ */
+function vc_header($role) {
+    echo html_writer::start_tag('div', array('class' => 'vc-page'));
     echo html_writer::start_tag('div', array('class' => 'page-header'));
     echo html_writer::tag('h3', 'StudiesMasters Virtual Classroom');
     echo html_writer::end_tag('div');
+    $nav = html_writer::link(new moodle_url('/local/studiesmasters_virtualclass/index.php'), 'Dashboard', array('class' => 'vc-btn vc-btn-outline'));
+    $nav .= ' ' . html_writer::link(new moodle_url('/local/studiesmasters_virtualclass/index.php', array('view' => 'recordings')), 'Recordings', array('class' => 'vc-btn vc-btn-outline'));
+    $nav .= ' ' . html_writer::link(new moodle_url('/local/studiesmasters_virtualclass/index.php', array('view' => 'attendance')), 'Attendance', array('class' => 'vc-btn vc-btn-outline'));
+    echo html_writer::tag('div', $nav, array('class' => 'vc-nav'));
 }
-function footer() {
+function vc_footer() {
     echo html_writer::end_tag('div');
 }
