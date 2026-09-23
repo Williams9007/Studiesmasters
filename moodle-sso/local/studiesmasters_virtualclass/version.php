@@ -11,7 +11,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_studiesmasters_virtualclass';
-$plugin->version   = 2026092301; // YYYYMMDDXX — outranks server-side v2026092300
+$plugin->version   = 2026092302; // YYYYMMDDXX — outranks server-side v2026092301
 $plugin->requires  = 2020061500; // Moodle 3.9+
 $plugin->release   = '1.0.0';
 $plugin->maturity  = MATURITY_STABLE;

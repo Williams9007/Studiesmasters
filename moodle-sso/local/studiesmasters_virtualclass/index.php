@@ -17,14 +17,25 @@ require_once(__DIR__ . '/../../config.php');
 global $USER;
 require_login();
 
-// Load the shared StudiesMasters design CSS so the page looks native.
-echo '<link rel="stylesheet" href="' . (new moodle_url('/local/studiesmasters_virtualclass/styles.css')) . '">';
+// NOTE: no output here — the page identity ($PAGE->set_url) and the theme
+// header must be established first; CSS is registered via $PAGE->requires->css.
 
 // ---- 1. Resolve the current Moodle user to a StudiesMasters identity ------
 $username = isset($USER->username) ? $USER->username : '';
 $email    = isset($USER->email) ? $USER->email : '';
 $isTeacher = (strpos($username, 'sm_t') === 0);
 $role = $isTeacher ? 'teacher' : 'student';
+
+// ---- Params + page identity (BEFORE any output) ---------------------------
+$action  = optional_param('action', '', PARAM_RAW);   // '' | join | leave | start | end | regenerate
+$sessionId = optional_param('session', '', PARAM_RAW); // session id for actions
+$view    = optional_param('view', 'dashboard', PARAM_RAW); // dashboard | recordings | attendance
+$PAGE->set_url(new moodle_url('/local/studiesmasters_virtualclass/index.php', array_filter(array(
+    'action' => $action,
+    'session' => $sessionId,
+    'view' => ($view !== 'dashboard') ? $view : '',
+))));
+$PAGE->set_title(get_string('pluginname', 'local_studiesmasters_virtualclass'));
 
 // ---- 2. Load plugin settings ----------------------------------------------
 $secret     = get_config('local_studiesmasters_virtualclass', 'backendsecret');
@@ -37,10 +48,6 @@ if (empty($secret) || empty($backendUrl)) {
 }
 
 // ---- 3. Dispatch -----------------------------------------------------------------
-$action  = optional_param('action', '', PARAM_RAW);   // '' | join | leave | start | end | regenerate
-$sessionId = optional_param('session', '', PARAM_RAW); // session id for actions
-$view    = optional_param('view', 'dashboard', PARAM_RAW); // dashboard | recordings | attendance
-
 vc_header($role);
 
 if ($action !== '') {
@@ -353,6 +360,11 @@ function action_link($action, $sid, $label, $btnClass) {
  * $role drives the nav so students/teachers see the right entry points.
  */
 function vc_header($role) {
+    global $PAGE, $OUTPUT;
+    // Native Moodle chrome: register our CSS (lands in <head>) then emit the
+    // theme header (navbar etc.) BEFORE any page output.
+    $PAGE->requires->css(new moodle_url('/local/studiesmasters_virtualclass/styles.css'));
+    echo $OUTPUT->header();
     echo html_writer::start_tag('div', array('class' => 'vc-page'));
     echo html_writer::start_tag('div', array('class' => 'page-header'));
     echo html_writer::tag('h3', 'StudiesMasters Virtual Classroom');
@@ -363,5 +375,7 @@ function vc_header($role) {
     echo html_writer::tag('div', $nav, array('class' => 'vc-nav'));
 }
 function vc_footer() {
-    echo html_writer::end_tag('div');
+    global $OUTPUT;
+    echo html_writer::end_tag('div'); // .vc-page
+    echo $OUTPUT->footer();
 }
