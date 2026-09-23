@@ -68,6 +68,14 @@ if (!empty($verifyUrl)) {
         if (is_array($res) && array_key_exists('success', $res)) {
             if ($res['success'] === true) {
                 $backendProfile = $res;           // authoritative identity + profile
+                // ---- 4a. Normalize the verify profile (legacy-compat guard) ----
+                // `profile.fullName` may be an EMPTY STRING when the backend has
+                // no record — that is NOT a name. Treat empty like absent (step
+                // 5b keeps what Moodle has) — never blank out the user's name.
+                if (isset($backendProfile['profile']['fullName'])
+                    && trim((string) $backendProfile['profile']['fullName']) === '') {
+                    unset($backendProfile['profile']['fullName']);
+                }
             } else {
                 // Nonce/already-consumed or bad signature etc.
                 throw new \moodle_exception('replayed', 'local_studiesmasters_sso');
@@ -123,13 +131,31 @@ if (!$user) {
 
 // ---- 5b. Sync mutable profile fields (authoritative, from the backend) ----
 if ($user->email !== $email) { $user->email = $email; }
-if (isset($backendProfile['profile']['fullName'])) {
+// ---- 5b. Set/refresh names from the authoritative backend profile ----
+// IMPORTANT: the authoritative source is the VERIFY payload (`profile`),
+// which the backend builds fresh from Mongo on EVERY login. Existing Moodle
+// users get here on every SSO, so this block runs for them too — fullName
+// included. A non-empty fullName ALWAYS overwrites stale firstname/lastname
+// (name edits on the main website propagate here on next login). An absent
+// or blank fullName means "no authority" — keep whatever Moodle already has
+// (a stale name beats a blank one). Moodle displays firstname + lastname
+// (never a single displayname), so fullName is split here.
+// NOTE on fields: verifySSO returns ONLY `profile.fullName` (+ email, grade,
+// curriculum, package, subjects). There are NO firstname/lastname keys —
+// earlier code read `$backendProfile['profile']['firstname']` and silently
+// did nothing, which is exactly why teacher detail edits never arrived.
+if (!empty($backendProfile['profile']['fullName'])) {
     $parts = preg_split('/\s+/', trim($backendProfile['profile']['fullName']));
     if (!empty($parts)) {
         $f = array_shift($parts);
         $l = implode(' ', $parts);
         if ($user->firstname !== $f) { $user->firstname = $f; }
         if ($user->lastname !== $l)  { $user->lastname  = $l; }
+        // Keep display consistent: firstname + lastname drive the header.
+        $user->firstnamephonetic = '';
+        $user->lastnamephonetic  = '';
+        $user->middlename        = '';
+        $user->alternatename     = '';
     }
 }
 
