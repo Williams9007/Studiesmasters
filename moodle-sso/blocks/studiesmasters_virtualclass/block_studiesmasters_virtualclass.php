@@ -39,9 +39,18 @@ class block_studiesmasters_virtualclass extends block_base {
             return $this->content = html_writer::div(get_string('backend_unreachable', 'block_studiesmasters_virtualclass'), 'alert alert-warning');
         }
 
+        $courses = $data['courses'] ?? [];
         $items = array_merge($data['liveNow'] ?? array(), $data['upcoming'] ?? array());
         $html = html_writer::start_div('sm-dashboard-block');
         $html .= html_writer::link(new moodle_url('/local/studiesmasters_virtualclass/index.php'), get_string('open_virtualclassroom', 'local_studiesmasters_virtualclass'), array('class' => 'btn btn-primary mb-3'));
+        if ($courses) {
+            $html .= '<h6 class="mb-2"><strong>My courses</strong></h6><ul class="sm-dashboard-courses">';
+            foreach ($courses as $course) {
+                $label = trim(($course['code'] ?? '') . ' · ' . ($course['subject'] ?? 'Class') . ' · ' . ($course['grade'] ?? ''));
+                $html .= html_writer::tag('li', s($label));
+            }
+            $html .= '</ul>';
+        }
         if (!$items) {
             $html .= html_writer::div(get_string('no_classes', 'block_studiesmasters_virtualclass'), 'alert alert-info');
         } else {
