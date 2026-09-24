@@ -11,7 +11,7 @@
 defined('MOODLE_INTERNAL') || die();
 
 $plugin->component = 'local_studiesmasters_virtualclass';
-$plugin->version   = 2026092303; // YYYYMMDDXX — 3: adds nav drawer entry (lib.php)
+$plugin->version   = 2026092401; // Add main-dashboard block support.
 $plugin->requires  = 2020061500; // Moodle 3.9+
 $plugin->release   = '1.0.0';
 $plugin->maturity  = MATURITY_STABLE;

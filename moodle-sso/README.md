@@ -73,7 +73,19 @@ All lifecycle operations go through `services/moodle/*`:
 - `studiesmasters-frontend/src/components/*dashboard.jsx` — "Open class"/"Start class" buttons
 - `moodle-sso/local/studiesmasters_sso/` — Moodle local plugin (copy to Moodle server)
 
-## Setup
+## Main Moodle dashboard
+
+The plugin includes an optional Moodle dashboard block:
+
+1. Copy `moodle-sso/blocks/studiesmasters_virtualclass` into the Moodle server's
+   `blocks/studiesmasters_virtualclass` directory.
+2. Run **Site administration → Notifications** to install/update the block.
+3. Open the Moodle main dashboard and use **Customise dashboard** to add
+   **Upcoming virtual classes** to the dashboard.
+4. Sign in as an SSO student/teacher account. The block reads the same signed
+   backend dashboard endpoint as the full Virtual Classroom page.
+
+The dashboard block is display-only; it does not create or modify classes.
 
 1. **Backend `.env`** — see `.env.example`: share `MOODLE_SSO_SECRET` with the
    plugin; set the Moodle base URL. Optional sync: `REDIS_URL`, `MOODLE_WS_*`.
