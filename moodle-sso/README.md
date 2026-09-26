@@ -75,17 +75,69 @@ All lifecycle operations go through `services/moodle/*`:
 
 ## Main Moodle dashboard
 
-The plugin includes an optional Moodle dashboard block:
+The plugin ships a dashboard block so the virtual-class information is visible
+on `/my/` as well as on the full Virtual Classroom page.
 
-1. Copy `moodle-sso/blocks/studiesmasters_virtualclass` into the Moodle server's
-   `blocks/studiesmasters_virtualclass` directory.
-2. Run **Site administration → Notifications** to install/update the block.
-3. Open the Moodle main dashboard and use **Customise dashboard** to add
-   **Upcoming virtual classes** to the dashboard.
+### Deploy
+
+1. Copy `moodle-sso/blocks/studiesmasters_virtualclass` into the Moodle
+   server's `blocks/studiesmasters_virtualclass` directory.
+2. Run **Site administration -> Notifications** to install the block.
+3. Put the block on the dashboards that already exist. Installing a block only
+   makes it *available* — Moodle never adds it to anyone's dashboard, and
+   every SSO account is created on first login with a bare default dashboard:
+
+   ```
+   php moodle/cli/add_studiesmasters_dashboard_block.php --dry-run
+   php moodle/cli/add_studiesmasters_dashboard_block.php
+   ```
+
+   The script only touches `sm_s_*` / `sm_t_*` accounts, skips users who
+   already have the block, supports `--remove`, and can be limited with
+   `--user-id=N`. New users can also add it themselves via **Customise
+   dashboard -> Upcoming virtual classes**.
+
 4. Sign in as an SSO student/teacher account. The block reads the same signed
    backend dashboard endpoint as the full Virtual Classroom page.
 
 The dashboard block is display-only; it does not create or modify classes.
+
+### Why one user sees classes and another does not
+
+The block/page never looks users up by name. The Moodle username IS the
+identity (`sm_s_<hex>` / `sm_t_<hex>`, derived from the immutable Mongo `_id`),
+and the backend resolves it in two gates:
+
+| Gate | Check | Failure symptom |
+|------|-------|-----------------|
+| 1. Identity | `MoodleLink.findOne({ moodleUsername })` | `unknown_user` — **no** classes at all |
+| 2. Entitlement | membership of a `ClassGroup` | resolves fine, but an empty timetable |
+
+Both look identical in the browser ("no classes"), which is why this was hard
+to diagnose. Two notes that catch people out:
+
+- **Logging into Moodle successfully does not mean the link exists.** SSO
+  creates the Moodle user independently of `MoodleLink`, so a user can reach
+  `/my/` normally and still have no virtual-class data.
+- **A paid subscription is not a class seat.** A teaching group is separate
+  from payment enrolments, so a paying student who was never added to a
+  `ClassGroup.students` array correctly sees nothing.
+
+`verifyClassRequest` now self-heals a missing `MoodleLink` (the id in the
+username is authoritative, so the link is re-derived and created idempotently),
+and the page/block show an explicit "account not linked" message instead of
+implying an empty timetable.
+
+To investigate a specific user:
+
+```
+node scripts/diagnose-vclass-user.js "Williams Mensah"   # read-only, names the failing gate
+node scripts/fix-vclass-link.js --name="Williams Mensah" # dry-run repair
+node scripts/fix-vclass-link.js --name="Williams Mensah" --apply
+```
+
+Gate 2 (class-group membership) is deliberately NOT automated — who is in
+which classroom is a staffing decision, so it is reported, never guessed.
 
 1. **Backend `.env`** — see `.env.example`: share `MOODLE_SSO_SECRET` with the
    plugin; set the Moodle base URL. Optional sync: `REDIS_URL`, `MOODLE_WS_*`.
