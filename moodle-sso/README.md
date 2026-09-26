@@ -73,34 +73,31 @@ All lifecycle operations go through `services/moodle/*`:
 - `studiesmasters-frontend/src/components/*dashboard.jsx` — "Open class"/"Start class" buttons
 - `moodle-sso/local/studiesmasters_sso/` — Moodle local plugin (copy to Moodle server)
 
-## Main Moodle dashboard
+## Virtual Classroom (removed from Moodle)
 
-The plugin ships a dashboard block so the virtual-class information is visible
-on `/my/` as well as on the full Virtual Classroom page.
+The **StudiesMasters Virtual Classroom** local plugin and its `/my/` dashboard
+block have been taken down. Nothing virtual-class related is shipped to Moodle
+anymore:
 
-### Deploy
+- `local/studiesmasters_virtualclass` — the launcher page at
+  `/local/studiesmasters_virtualclass/index.php` plus its nav-drawer entry
+  (registered from `lib.php`).
+- `blocks/studiesmasters_virtualclass` — the "Upcoming virtual classes" block.
+- `cli/add_studiesmasters_dashboard_block.php` — the bulk dashboard installer.
 
-1. Copy `moodle-sso/blocks/studiesmasters_virtualclass` into the Moodle
-   server's `blocks/studiesmasters_virtualclass` directory.
-2. Run **Site administration -> Notifications** to install the block.
-3. Put the block on the dashboards that already exist. Installing a block only
-   makes it *available* — Moodle never adds it to anyone's dashboard, and
-   every SSO account is created on first login with a bare default dashboard:
+**To remove it from a live Moodle server:**
 
-   ```
-   php moodle/cli/add_studiesmasters_dashboard_block.php --dry-run
-   php moodle/cli/add_studiesmasters_dashboard_block.php
-   ```
+1. On the server, delete `<moodle>/local/studiesmasters_virtualclass` and
+   `<moodle>/blocks/studiesmasters_virtualclass` (and
+   `<moodle>/cli/add_studiesmasters_dashboard_block.php` if you copied it).
+2. Remove the block from every dashboard, or re-run the installer you used
+   before with `--remove` (do this in step 1, before deleting the file).
+3. Run **Site administration -> Notifications** so Moodle drops both plugins.
 
-   The script only touches `sm_s_*` / `sm_t_*` accounts, skips users who
-   already have the block, supports `--remove`, and can be limited with
-   `--user-id=N`. New users can also add it themselves via **Customise
-   dashboard -> Upcoming virtual classes**.
-
-4. Sign in as an SSO student/teacher account. The block reads the same signed
-   backend dashboard endpoint as the full Virtual Classroom page.
-
-The dashboard block is display-only; it does not create or modify classes.
+Only the SSO plugin (`local/studiesmasters_sso`) remains on the Moodle side.
+The StudiesMasters **web** virtual classroom is unaffected — it is served by the
+React front end and the `/api/moodle/vclass/*` backend endpoints, which are
+untouched.
 
 ### Why one user sees classes and another does not
 
