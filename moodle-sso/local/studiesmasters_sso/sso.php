@@ -149,8 +149,9 @@ if (!empty($backendProfile['profile']['fullName'])) {
     if (!empty($parts)) {
         $f = array_shift($parts);
         $l = implode(' ', $parts);
+        // A single-word authoritative name must not erase a real surname.
         if ($user->firstname !== $f) { $user->firstname = $f; }
-        if ($user->lastname !== $l)  { $user->lastname  = $l; }
+        if ($l !== '' && $user->lastname !== $l) { $user->lastname = $l; }
         // Keep display consistent: firstname + lastname drive the header.
         $user->firstnamephonetic = '';
         $user->lastnamephonetic  = '';
@@ -174,13 +175,19 @@ if (!empty($mwUrl) && !empty($mwTok)) {
             'token' => $mwTok,
         ));
     $nameSyncJson = studiesmasters_http_get($nameSyncJoined);
-    if ($nameSyncJson !== null) {
+    if ($nameSyncJson === null) {
+        error_log('[StudiesMasters SSO] Main website name sync request failed for username=' . $username);
+    } else {
         $nameSyncRes = json_decode($nameSyncJson, true);
-        if (is_array($nameSyncRes) && array_key_exists('fullName', $nameSyncRes)) {
-            $nameSyncResult = trim($nameSyncRes['fullName']);
+        if (is_array($nameSyncRes) && !empty($nameSyncRes['success']) && array_key_exists('fullName', $nameSyncRes)) {
+            $nameSyncResult = is_string($nameSyncRes['fullName']) ? trim($nameSyncRes['fullName']) : null;
+        } else {
+            error_log('[StudiesMasters SSO] Main website name sync rejected or malformed for username=' . $username);
         }
     }
-    if ($nameSyncResult !== null && $nameSyncResult !== '') {
+    if ($nameSyncResult === null || $nameSyncResult === '') {
+        error_log('[StudiesMasters SSO] Main website has no usable name for username=' . $username);
+    } else {
         // Real name from the main website is authoritative (overrides the
         // backend name which may be stale or a placeholder set at SSO creation).
         $parts = preg_split('/\s+/', $nameSyncResult);
@@ -188,7 +195,7 @@ if (!empty($mwUrl) && !empty($mwTok)) {
             $f = array_shift($parts);
             $l = implode(' ', $parts);
             if ($user->firstname !== $f) { $user->firstname = $f; }
-            if ($user->lastname !== $l)  { $user->lastname  = $l; }
+            if ($l !== '' && $user->lastname !== $l) { $user->lastname = $l; }
         }
     }
 }

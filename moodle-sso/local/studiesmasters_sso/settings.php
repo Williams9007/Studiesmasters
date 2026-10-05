@@ -38,7 +38,7 @@ if ($hassiteconfig) {
         'Main website sync URL',
         'StudiesMasters main website endpoint that returns the real user name for a given email. ' .
         'The Moodle plugin calls this during SSO to refresh user names from the main website. ' .
-        'e.g. https://studiesmasters-backend.onrender.com/api/main-website/sync-name',
+        'e.g. https://studiesmasters-backend.onrender.com/api/moodle/main-website/sync-name',
         '',
         PARAM_URL
     ));
