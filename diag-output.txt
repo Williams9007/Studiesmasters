@@ -1,0 +1,21 @@
+=== Node Modules Check ===
+node_modules exists: false
+dotenv exists: false
+mongoose exists: false
+
+=== .env Values ===
+MONGO_USER: (not set)
+MONGO_HOST: (not set)
+MONGO_DB_NAME: (not set)
+MONGO_URI: mongodb+srv://:@undefined/
+
+=== Public IP ===
+Your public IP: 154.161.47.235
+
+=== DNS Resolution ===
+SRV resolution error: The "callback" argument must be of type function. Received undefined
+
+=== Port Connectivity ===
+  cluster0-shard-00-00.lbihmuj.mongodb.net: DNS failed - getaddrinfo ENOTFOUND cluster0-shard-00-00.lbihmuj.mongodb.net
+  cluster0-shard-00-01.lbihmuj.mongodb.net: DNS failed - getaddrinfo ENOTFOUND cluster0-shard-00-01.lbihmuj.mongodb.net
+  cluster0-shard-00-02.lbihmuj.mongodb.net: DNS failed - getaddrinfo ENOTFOUND cluster0-shard-00-02.lbihmuj.mongodb.net

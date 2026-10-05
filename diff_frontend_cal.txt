@@ -1,0 +1,85 @@
+﻿diff --git a/src/components/qao/CalendarView.jsx b/src/components/qao/CalendarView.jsx
+index 1b5dbb3..afcd03d 100644
+--- a/src/components/qao/CalendarView.jsx
++++ b/src/components/qao/CalendarView.jsx
+@@ -24,18 +24,31 @@ const STATUS_COLORS = {
+   cancelled: "#94a3b8",
+ };
+ 
++// Sessions are stored with `date` = UTC midnight of the INTENDED calendar day
++// (see services/moodle/syncClass.js#toEpochSeconds). Reading that instant with
++// local getters shifts every class a day backwards for any viewer behind UTC
++// (e.g. UTC-7 rendered "Sep 19" as "Sep 18"), which is why classes looked
++// missing from the calendar and from "Classes Today".
++function sessionDayParts(s) {
++  const src = new Date(s.date);
++  return [src.getUTCFullYear(), src.getUTCMonth(), src.getUTCDate()];
++}
++
+ function sessionStart(s) {
+-  const d = new Date(s.date);
++  const [y, mo, da] = sessionDayParts(s);
+   const [h, m] = String(s.startTime || "00:00").split(":").map(Number);
+-  d.setHours(h || 0, m || 0, 0, 0);
+-  return d;
++  return new Date(y, mo, da, h || 0, m || 0, 0, 0);
+ }
+ 
+ function sessionEnd(s) {
+-  const d = new Date(s.date);
++  const [y, mo, da] = sessionDayParts(s);
+   const [h, m] = String(s.endTime || s.startTime || "00:00").split(":").map(Number);
+-  d.setHours(h || 0, m || 0, 0, 0);
+-  return d;
++  return new Date(y, mo, da, h || 0, m || 0, 0, 0);
++}
++
++/** Local YYYY-MM-DD for an instant (never toISOString ΓÇö it shifts by a day). */
++function localYmd(d) {
++  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+ }
+ 
+ export default function CalendarView() {
+@@ -67,6 +80,14 @@ export default function CalendarView() {
+   useEffect(() => {
+     load();
+   }, [load]);
++// Live refresh: the dashboard emits "sm:calendar-refresh" whenever a class is
++  // created / updated / cancelled or a timetable is published, so this calendar
++  // is never stale (previously it only loaded once on mount).
++  useEffect(() => {
++    const onRefresh = () => load();
++    window.addEventListener("sm:calendar-refresh", onRefresh);
++    return () => window.removeEventListener("sm:calendar-refresh", onRefresh);
++  }, [load]);
+ 
+   const filtered = useMemo(
+     () =>
+@@ -103,11 +124,13 @@ export default function CalendarView() {
+   const today = useMemo(() => {
+     const start = new Date();
+     start.setHours(0, 0, 0, 0);
+-    const end = new Date(start);
+-    end.setDate(end.getDate() + 1);
+     const list = filtered.filter((s) => {
++      // Compare the session's UTC calendar day against today's LOCAL calendar
++      // day so "Classes Today" matches what the calendar grid shows.
+       const d = new Date(s.date);
+-      return d >= start && d < end;
++      return d.getUTCFullYear() === start.getFullYear()
++        && d.getUTCMonth() === start.getMonth()
++        && d.getUTCDate() === start.getDate();
+     });
+     const upcoming = list.filter((s) => s.status === "scheduled");
+     const active = list.filter((s) => s.status === "live");
+@@ -120,7 +143,9 @@ export default function CalendarView() {
+     const start = arg?.start || new Date();
+     const end = arg?.end || new Date(start.getTime() + 60 * 60 * 1000);
+     const fmt = (d) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+-    setModal({ open: true, mode: "create", session: null, defaults: { date: start.toISOString().slice(0, 10), startTime: fmt(start), endTime: fmt(end) } });
++    // localYmd (not toISOString) ΓÇö the calendar selection is a LOCAL instant, so
++    // toISOString would silently move the date by a day for UTC+ viewers.
++    setModal({ open: true, mode: "create", session: null, defaults: { date: localYmd(start), startTime: fmt(start), endTime: fmt(end) } });
+   };
+ 
+   const openEdit = (info) => setModal({ open: true, mode: "edit", session: info.event.extendedProps.session, defaults: {} });

@@ -1,0 +1,35 @@
+﻿diff --git a/src/components/qao-dashboard.jsx b/src/components/qao-dashboard.jsx
+index b673f6f..98075bb 100644
+--- a/src/components/qao-dashboard.jsx
++++ b/src/components/qao-dashboard.jsx
+@@ -183,13 +183,26 @@ function TutorManagerDashboard() {
+       ]);
+     };
+ 
++    // Any class/timetable mutation should make the Calendar view re-fetch so a
++    // newly scheduled class appears immediately (it used to stay stale until a
++    // manual reload because only notifications were wired up).
++    const refreshCalendar = () => {
++      window.dispatchEvent(new CustomEvent("sm:calendar-refresh"));
++    };
++
+     socket.on("notification:new", (p) => addLive(p, "Notification"));
+-    socket.on("timetable:published", (p) => addLive(p, "Timetable published"));
++    socket.on("timetable:published", (p) => { addLive(p, "Timetable published"); refreshCalendar(); });
+     socket.on("timetable:submitted", (p) => addLive(p, "Timetable submitted for review"));
+     socket.on("timetable:reviewed", (p) => addLive(p, "Timetable reviewed"));
+-    socket.on("class:upcoming", (p) => addLive(p, "Upcoming class"));
+-    socket.on("class:live", (p) => addLive(p, "Class is live"));
+-    socket.on("class:ended", (p) => addLive(p, "Class ended"));
++    socket.on("class:upcoming", (p) => { addLive(p, "Upcoming class"); refreshCalendar(); });
++    socket.on("class:live", (p) => { addLive(p, "Class is live"); refreshCalendar(); });
++    socket.on("class:ended", (p) => { addLive(p, "Class ended"); refreshCalendar(); });
++    socket.on("class:created", (p) => { addLive(p, "New class scheduled"); refreshCalendar(); });
++    socket.on("schedule:created", (p) => { addLive(p, "Class scheduled"); refreshCalendar(); });
++    socket.on("class:updated", (p) => refreshCalendar());
++    socket.on("schedule:updated", (p) => refreshCalendar());
++    socket.on("class:cancelled", (p) => { addLive(p, "Class cancelled"); refreshCalendar(); });
++    socket.on("schedule:conflict", (p) => addLive(p, "Scheduling conflict"));
+ 
+     return () => socket.disconnect();
+   }, [token]);
