@@ -1,0 +1,17 @@
+node_modules
+npm-debug.log
+.env
+.env.local
+.env.production
+Studiesmasters-backend/.env.production
+studiesmasters-frontend/.env.production
+.git
+logs
+*.log
+test-*.js
+seed*.js
+migrate*.js
+dropIndex.js
+resetAdminPassword.js
+Studiesmasters-backend-backup
+temp_theme/

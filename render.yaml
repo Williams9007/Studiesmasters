@@ -1,0 +1,98 @@
+services:
+  # ==========================
+  # Backend API (Node + Express)
+  # ==========================
+  - type: web
+    name: studiesmasters-backend
+    runtime: node
+    plan: starter
+    rootDir: Studiesmasters-backend
+    buildCommand: npm ci
+    startCommand: node server.js
+    healthCheckPath: /health
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: 20.18.0
+      - key: PORT
+        value: 5000
+      - key: LOG_LEVEL
+        value: info
+      - key: FRONTEND_URL
+        value: https://studiesmasters-frontend.onrender.com
+      - key: GOOGLE_REDIRECT_URI
+        value: https://studiesmasters-backend.onrender.com/api/google/oauth/callback
+      - key: GOOGLE_TEACHER_REDIRECT_URI
+        value: https://studiesmasters-backend.onrender.com/api/google/teacher/callback
+      - key: GOOGLE_SCOPES
+        value: https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/meetings.space.created openid
+      - key: GOOGLE_TIMEZONE
+        value: Africa/Accra
+      - key: GOOGLE_ENABLED
+        value: true
+      - key: GOOGLE_ALLOW_MOCK
+        value: false
+      - key: MOODLE_ENABLED
+        value: true
+      - key: MOODLE_SSO_PATH
+        value: /local/studiesmasters_sso/sso.php
+      - key: MOODLE_SSO_LIFETIME_MS
+        value: 300000
+      - key: MOODLE_SSO_CLOCK_SKEW
+        value: 300
+      - key: MOODLE_SSO_ACTIVE_ID
+        value: 1
+      - key: MOODLE_SSO_SECRETS
+        value: "[]"
+      - key: MOODLE_AUDIT_DB
+        value: true
+      - key: MOODLE_WS_ENABLED
+        value: true
+      - key: MOODLE_DRY_RUN
+        value: false
+      - key: MOODLE_WS_TIMEOUT_MS
+        value: 10000
+      - key: MOODLE_WS_RETRIES
+        value: 3
+      - key: MOODLE_WS_RETRY_BACKOFF_MS
+        value: 1000
+      - key: MOODLE_AUTO_SYNC
+        value: true
+      - key: MOODLE_WORKER_ENABLED
+        value: true
+      - key: MOODLE_RECONCILIATION_ENABLED
+        value: true
+      - key: MOODLE_RECONCILIATION_INTERVAL_MS
+        value: 3600000
+      - key: MOODLE_RECONCILIATION_ON_START
+        value: false
+      - key: MOODLE_PACKAGE_MAP_JSON
+        value: '{"Starter":["Mathematics"],"Standard":["Mathematics","Science"],"Premium":["Mathematics","Science","English"]}'
+      # ---- Secrets: set once in Render Dashboard > Environment ----
+      # MONGO_USER / MONGO_PASSWORD / MONGO_HOST / MONGO_DB_NAME
+      # JWT_SECRET / GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET / GOOGLE_PROJECT_ID
+      # GOOGLE_TOKEN_ENC_KEY / RESEND_API_KEY / RESEND_FROM_EMAIL / FROM_EMAIL
+      # ADMIN_EMAIL / PAYSTACK_SECRET_KEY / PAYSTACK_PUBLIC_KEY
+      # VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY / TURNSTILE_SECRET
+      # MOODLE_SSO_SECRET / MOODLE_BASE_URL / MAIN_WEBSITE_SYNC_TOKEN
+      # MOODLE_WS_TOKEN / MOODLE_WS_URL / REDIS_URL
+
+  # ==========================
+  # Frontend (React + Vite static)
+  # ==========================
+  - type: web
+    name: studiesmasters-frontend
+    runtime: static
+    rootDir: studiesmasters-frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: ./dist
+    autoDeploy: true
+    envVars:
+      - key: VITE_BACKEND_URL
+        value: https://studiesmasters-backend.onrender.com
+      - key: VITE_API_URL
+        value: https://studiesmasters-backend.onrender.com
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html

@@ -100,8 +100,16 @@ jobs:
     environment: production
 
     steps:
-      - name: Deploy to Render
+      - name: Trigger Render backend deploy
+        if: ${{ secrets.RENDER_BACKEND_HOOK_URL != '' }}
+        run: curl -fsSL -X POST "${{ secrets.RENDER_BACKEND_HOOK_URL }}"
+
+      - name: Trigger Render frontend deploy
+        if: ${{ secrets.RENDER_FRONTEND_HOOK_URL != '' }}
+        run: curl -fsSL -X POST "${{ secrets.RENDER_FRONTEND_HOOK_URL }}"
+
+      - name: No deploy hooks configured
+        if: ${{ secrets.RENDER_BACKEND_HOOK_URL == '' && secrets.RENDER_FRONTEND_HOOK_URL == '' }}
         run: |
-          echo "🚀 Deploying to Render..."
-          echo "Set up Render deploy hook in your repository secrets"
-          echo "RENDER_DEPLOY_HOOK_URL=https://api.render.com/deploy/your-hook-url"
+          echo "⚠️ No RENDER_*_HOOK_URL secrets set - relying on Render autoDeploy from render.yaml."
+          echo "Add RENDER_BACKEND_HOOK_URL + RENDER_FRONTEND_HOOK_URL in GitHub > Settings > Secrets to trigger on push."
