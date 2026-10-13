@@ -15,3 +15,5 @@ dropIndex.js
 resetAdminPassword.js
 Studiesmasters-backend-backup
 temp_theme/
+# Local build artifact
+*.zip
